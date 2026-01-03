@@ -4,21 +4,21 @@ import {
   Phone, 
   Zap, 
   Tv, 
-  CreditCard,
+  Send,
   Gift,
-  Banknote,
-  Fingerprint,
+  BookOpen,
+  Coins,
   ChevronRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const services = [
   { 
-    icon: Wifi, 
-    label: 'Data', 
-    description: 'Buy data bundles',
-    path: '/data', 
-    color: 'bg-purple-100 text-purple-600' 
+    icon: Send, 
+    label: 'Transfer', 
+    description: 'Send money to others',
+    path: '/transfer', 
+    color: 'bg-blue-100 text-blue-600' 
   },
   { 
     icon: Phone, 
@@ -28,11 +28,11 @@ const services = [
     color: 'bg-green-100 text-green-600' 
   },
   { 
-    icon: CreditCard, 
-    label: 'Data Card', 
-    description: 'Purchase data cards',
-    path: '/data-card', 
-    color: 'bg-blue-100 text-blue-600' 
+    icon: Wifi, 
+    label: 'Data', 
+    description: 'Buy data bundles',
+    path: '/data', 
+    color: 'bg-purple-100 text-purple-600' 
   },
   { 
     icon: Zap, 
@@ -49,17 +49,17 @@ const services = [
     color: 'bg-red-100 text-red-600' 
   },
   { 
-    icon: Banknote, 
-    label: 'Airtime to Cash', 
-    description: 'Convert airtime to cash',
-    path: '/airtime-to-cash', 
+    icon: BookOpen, 
+    label: 'Exam Pin', 
+    description: 'WAEC, NECO, JAMB pins',
+    path: '/exam-pin', 
     color: 'bg-indigo-100 text-indigo-600' 
   },
   { 
-    icon: Fingerprint, 
-    label: 'BVN/NIN', 
-    description: 'Verify your identity',
-    path: '/bvn-nin', 
+    icon: Coins, 
+    label: 'Cashback', 
+    description: 'Earn rewards on purchases',
+    path: '/cashback', 
     color: 'bg-orange-100 text-orange-600' 
   },
   { 

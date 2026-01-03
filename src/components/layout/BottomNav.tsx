@@ -1,11 +1,11 @@
-import { Home, Grid3X3, History, User } from 'lucide-react';
+import { Home, Grid3X3, Gift, User } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { icon: Home, label: 'Home', path: '/dashboard' },
   { icon: Grid3X3, label: 'Services', path: '/services' },
-  { icon: History, label: 'History', path: '/history' },
+  { icon: Gift, label: 'Rewards', path: '/referral' },
   { icon: User, label: 'Profile', path: '/profile' },
 ];
 
