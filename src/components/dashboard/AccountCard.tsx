@@ -39,7 +39,7 @@ export function AccountCard() {
             <Copy className="w-4 h-4" />
           </button>
         </div>
-        <span className="text-xs opacity-75">Ramadan Data Sub</span>
+        <span className="text-xs opacity-75">SM Data</span>
       </div>
 
       {/* User Name */}
