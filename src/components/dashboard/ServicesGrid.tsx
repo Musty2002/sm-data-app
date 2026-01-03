@@ -3,21 +3,21 @@ import {
   Phone, 
   Zap, 
   Tv, 
-  MessageSquare,
+  Send,
   Gift,
   BookOpen,
-  Fingerprint
+  Coins
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const services = [
-  { icon: MessageSquare, label: 'Bulk SMS', path: '/bulk-sms', color: 'bg-blue-100 text-blue-600' },
+  { icon: Send, label: 'Transfer', path: '/transfer', color: 'bg-blue-100 text-blue-600' },
   { icon: Phone, label: 'Airtime', path: '/airtime', color: 'bg-green-100 text-green-600' },
   { icon: Wifi, label: 'Data', path: '/data', color: 'bg-purple-100 text-purple-600' },
   { icon: Zap, label: 'Electricity', path: '/electricity', color: 'bg-yellow-100 text-yellow-600' },
   { icon: Tv, label: 'TV Sub', path: '/tv', color: 'bg-red-100 text-red-600' },
   { icon: BookOpen, label: 'Exam Pin', path: '/exam-pin', color: 'bg-indigo-100 text-indigo-600' },
-  { icon: Fingerprint, label: 'BVN/NIN', path: '/bvn-nin', color: 'bg-orange-100 text-orange-600' },
+  { icon: Coins, label: 'Cashback', path: '/cashback', color: 'bg-orange-100 text-orange-600' },
   { icon: Gift, label: 'Refer & Earn', path: '/referral', color: 'bg-pink-100 text-pink-600' },
 ];
 
