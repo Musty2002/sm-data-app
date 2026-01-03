@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import logo from '@/assets/logo.jpeg';
+import logo from '@/assets/sm-data-logo.jpeg';
 
 const signUpSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
@@ -135,26 +135,26 @@ export default function Auth() {
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-background">
       {/* Logo */}
       <div className="mb-8 text-center">
-        <img src={logo} alt="Ramadan Data Sub" className="w-20 h-20 mx-auto rounded-2xl shadow-lg mb-4" />
-        <h1 className="text-2xl font-bold text-primary">Ramadan Data Sub</h1>
-        <p className="text-muted-foreground text-sm mt-1">Your trusted payment partner</p>
+        <img src={logo} alt="SM Data App" className="w-24 h-24 mx-auto rounded-full shadow-lg mb-4 border-4 border-secondary" />
+        <h1 className="text-2xl font-bold text-secondary">SM Data</h1>
+        <p className="text-muted-foreground text-sm mt-1">Your trusted data partner</p>
       </div>
 
       {/* Form Card */}
-      <div className="w-full max-w-sm bg-card rounded-2xl shadow-lg p-6">
-        <div className="flex mb-6">
+      <div className="w-full max-w-sm bg-card rounded-2xl shadow-lg p-6 border border-border">
+        <div className="flex mb-6 bg-muted rounded-lg p-1">
           <button
             onClick={() => setIsLogin(true)}
-            className={`flex-1 py-2 text-center font-medium rounded-lg transition-colors ${
-              isLogin ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+            className={`flex-1 py-2.5 text-center font-medium rounded-md transition-all ${
+              isLogin ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             Login
           </button>
           <button
             onClick={() => setIsLogin(false)}
-            className={`flex-1 py-2 text-center font-medium rounded-lg transition-colors ${
-              !isLogin ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+            className={`flex-1 py-2.5 text-center font-medium rounded-md transition-all ${
+              !isLogin ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             Sign Up
@@ -228,7 +228,7 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -255,6 +255,10 @@ export default function Auth() {
             {loading ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
           </Button>
         </form>
+
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          By continuing, you agree to our Terms of Service and Privacy Policy
+        </p>
       </div>
     </div>
   );
