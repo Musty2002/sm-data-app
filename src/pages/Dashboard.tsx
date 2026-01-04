@@ -15,7 +15,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4">
           <img src={logo} alt="SM Data" className="h-10 w-10 rounded-full object-cover border-2 border-secondary" />
-          <h1 className="text-lg font-bold text-secondary">SM Data</h1>
+          <h1 className="text-lg font-bold text-secondary">SM Data App</h1>
           <button 
             onClick={() => navigate('/notifications')}
             className="relative w-10 h-10 flex items-center justify-center rounded-full bg-muted hover:bg-muted/80 transition-colors"

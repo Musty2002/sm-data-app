@@ -13,7 +13,7 @@ const Index = () => {
           alt="SM Data App" 
           className="w-28 h-28 mx-auto rounded-full shadow-xl mb-6 border-4 border-secondary" 
         />
-        <h1 className="mb-2 text-3xl font-bold text-secondary">SM Data</h1>
+        <h1 className="mb-2 text-3xl font-bold text-secondary">SM Data App</h1>
         <p className="text-lg text-muted-foreground mb-8">
           Your trusted partner for affordable data, airtime & bill payments
         </p>
