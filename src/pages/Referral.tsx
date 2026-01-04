@@ -60,7 +60,7 @@ export default function Referral() {
   const shareReferralCode = async () => {
     if (!profile?.referral_code) return;
 
-    const shareText = `Join Ramadan Data Sub using my referral code: ${profile.referral_code} and get ₦100 bonus on your first transaction! Download now and start saving on data, airtime, and bills.`;
+    const shareText = `Join SM Data App using my referral code: ${profile.referral_code} and get ₦100 bonus when you buy at least 1GB of data! Download now and start saving on data, airtime, and bills.`;
 
     if (navigator.share) {
       try {
@@ -97,9 +97,9 @@ export default function Referral() {
         {/* Hero Section */}
         <div className="gradient-primary mx-4 rounded-2xl p-6 text-primary-foreground text-center mb-6">
           <Gift className="w-12 h-12 mx-auto mb-3" />
-          <h2 className="text-xl font-bold mb-2">Earn ₦200 Per Referral</h2>
+          <h2 className="text-xl font-bold mb-2">Earn ₦100 Per Referral</h2>
           <p className="text-sm opacity-90">
-            Invite friends to join Ramadan Data Sub. They get ₦100 bonus, you get ₦200!
+            Invite friends to join SM Data App. When they buy at least 1GB of data, you earn ₦100!
           </p>
         </div>
 
@@ -127,7 +127,7 @@ export default function Referral() {
         </div>
 
         {/* Stats */}
-        <div className="mx-4 grid grid-cols-3 gap-3 mb-6">
+        <div className="mx-4 grid grid-cols-3 gap-3 mb-4">
           <div className="bg-card rounded-xl p-4 text-center shadow-sm">
             <Users className="w-6 h-6 mx-auto mb-2 text-accent" />
             <p className="text-2xl font-bold text-foreground">{stats.totalReferrals}</p>
@@ -142,6 +142,41 @@ export default function Referral() {
             <Wallet className="w-6 h-6 mx-auto mb-2 text-yellow-500" />
             <p className="text-lg font-bold text-foreground">{formatCurrency(stats.totalEarnings)}</p>
             <p className="text-xs text-muted-foreground">Earned</p>
+          </div>
+        </div>
+
+        {/* Withdraw to Wallet */}
+        <div className="mx-4 mb-6">
+          <div className="bg-card rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Available Cashback</p>
+                <p className="text-xl font-bold text-foreground">{formatCurrency(stats.totalEarnings)}</p>
+              </div>
+              <Wallet className="w-8 h-8 text-primary" />
+            </div>
+            <Button 
+              className="w-full" 
+              variant="outline"
+              disabled={stats.totalEarnings <= 0}
+              onClick={() => {
+                if (stats.totalEarnings <= 0) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'No cashback available',
+                    description: 'Refer friends to earn cashback rewards!',
+                  });
+                  return;
+                }
+                toast({
+                  title: 'Withdrawal Request',
+                  description: `Your cashback of ${formatCurrency(stats.totalEarnings)} will be transferred to your main wallet.`,
+                });
+              }}
+            >
+              <Wallet className="w-4 h-4 mr-2" />
+              Withdraw to Main Wallet
+            </Button>
           </div>
         </div>
 
@@ -172,8 +207,8 @@ export default function Referral() {
                 3
               </div>
               <div>
-                <p className="font-medium text-foreground">Both earn rewards</p>
-                <p className="text-sm text-muted-foreground">You get ₦200, they get ₦100 after first transaction</p>
+                <p className="font-medium text-foreground">You earn ₦100</p>
+                <p className="text-sm text-muted-foreground">Get ₦100 when your friend buys at least 1GB of data</p>
               </div>
             </div>
           </div>
