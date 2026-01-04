@@ -18,7 +18,7 @@ const signUpSchema = z.object({
 });
 
 const signInSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  identifier: z.string().min(1, 'Email or phone number is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -32,6 +32,7 @@ export default function Auth() {
     email: '',
     password: '',
     referralCode: '',
+    identifier: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -64,13 +65,17 @@ export default function Auth() {
           return;
         }
 
-        const { error } = await signIn(formData.email, formData.password);
+        // Check if identifier is email or phone
+        const isEmail = formData.identifier.includes('@');
+        const loginEmail = isEmail ? formData.identifier : `${formData.identifier}@phone.local`;
+        
+        const { error } = await signIn(loginEmail, formData.password);
         if (error) {
           toast({
             variant: 'destructive',
             title: 'Login Failed',
             description: error.message === 'Invalid login credentials' 
-              ? 'Invalid email or password. Please try again.'
+              ? 'Invalid email/phone or password. Please try again.'
               : error.message,
           });
         } else {
@@ -136,7 +141,7 @@ export default function Auth() {
       {/* Logo */}
       <div className="mb-8 text-center">
         <img src={logo} alt="SM Data App" className="w-24 h-24 mx-auto rounded-full shadow-lg mb-4 border-4 border-secondary" />
-        <h1 className="text-2xl font-bold text-secondary">SM Data</h1>
+        <h1 className="text-2xl font-bold text-secondary">SM Data App</h1>
         <p className="text-muted-foreground text-sm mt-1">Your trusted data partner</p>
       </div>
 
@@ -197,21 +202,39 @@ export default function Auth() {
             </>
           )}
 
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="you@example.com"
-              value={formData.email}
-              onChange={handleChange}
-              className={errors.email ? 'border-destructive' : ''}
-            />
-            {errors.email && (
-              <p className="text-xs text-destructive mt-1">{errors.email}</p>
-            )}
-          </div>
+          {isLogin ? (
+            <div>
+              <Label htmlFor="identifier">Email or Phone Number</Label>
+              <Input
+                id="identifier"
+                name="identifier"
+                type="text"
+                placeholder="Email or phone number"
+                value={formData.identifier}
+                onChange={handleChange}
+                className={errors.identifier ? 'border-destructive' : ''}
+              />
+              {errors.identifier && (
+                <p className="text-xs text-destructive mt-1">{errors.identifier}</p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                value={formData.email}
+                onChange={handleChange}
+                className={errors.email ? 'border-destructive' : ''}
+              />
+              {errors.email && (
+                <p className="text-xs text-destructive mt-1">{errors.email}</p>
+              )}
+            </div>
+          )}
 
           <div>
             <Label htmlFor="password">Password</Label>
