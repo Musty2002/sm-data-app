@@ -21,23 +21,10 @@ import Transfer from "./pages/Transfer";
 import AddMoney from "./pages/AddMoney";
 import BvnNin from "./pages/BvnNin";
 import Notifications from "./pages/Notifications";
+import WebAuth from "./pages/WebAuth";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
-
-// Check if current hostname is the website subdomain (www) or app subdomain
-const isWebsiteSubdomain = () => {
-  const hostname = window.location.hostname;
-  // Website subdomain patterns: www.*, or root domain without app prefix
-  // App subdomain patterns: app.*
-  return hostname.startsWith('www.') || 
-         (!hostname.startsWith('app.') && !hostname.includes('localhost'));
-};
-
-const isAppSubdomain = () => {
-  const hostname = window.location.hostname;
-  return hostname.startsWith('app.') || hostname.includes('localhost');
-};
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -78,12 +65,14 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Landing page - accessible on website subdomain, redirects to dashboard on app subdomain */}
+      {/* Website routes - separate from app */}
+      <Route path="/website" element={<Index />} />
+      <Route path="/weblogin" element={<WebAuth />} />
+      
+      {/* App routes */}
       <Route 
         path="/" 
-        element={
-          isAppSubdomain() ? <Navigate to="/dashboard" replace /> : <Index />
-        } 
+        element={<Navigate to="/dashboard" replace />} 
       />
       <Route
         path="/auth"
