@@ -77,14 +77,14 @@ const Index = () => {
               <button onClick={() => scrollToSection('services')} className="text-muted-foreground hover:text-foreground transition-colors">
                 Services
               </button>
-              <button onClick={() => scrollToSection('features')} className="text-muted-foreground hover:text-foreground transition-colors">
-                Why Us
+              <button onClick={() => navigate('/webabout')} className="text-muted-foreground hover:text-foreground transition-colors">
+                About
               </button>
-              <button onClick={() => scrollToSection('testimonials')} className="text-muted-foreground hover:text-foreground transition-colors">
-                Testimonials
-              </button>
-              <button onClick={() => scrollToSection('pricing')} className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => navigate('/webpricing')} className="text-muted-foreground hover:text-foreground transition-colors">
                 Pricing
+              </button>
+              <button onClick={() => navigate('/webcontact')} className="text-muted-foreground hover:text-foreground transition-colors">
+                Contact
               </button>
             </nav>
 
@@ -113,14 +113,14 @@ const Index = () => {
                 <button onClick={() => scrollToSection('services')} className="text-left text-muted-foreground hover:text-foreground">
                   Services
                 </button>
-                <button onClick={() => scrollToSection('features')} className="text-left text-muted-foreground hover:text-foreground">
-                  Why Us
+                <button onClick={() => navigate('/webabout')} className="text-left text-muted-foreground hover:text-foreground">
+                  About
                 </button>
-                <button onClick={() => scrollToSection('testimonials')} className="text-left text-muted-foreground hover:text-foreground">
-                  Testimonials
-                </button>
-                <button onClick={() => scrollToSection('pricing')} className="text-left text-muted-foreground hover:text-foreground">
+                <button onClick={() => navigate('/webpricing')} className="text-left text-muted-foreground hover:text-foreground">
                   Pricing
+                </button>
+                <button onClick={() => navigate('/webcontact')} className="text-left text-muted-foreground hover:text-foreground">
+                  Contact
                 </button>
                 <div className="flex gap-3 pt-4">
                   <Button variant="outline" onClick={() => navigate('/weblogin')} className="flex-1">
