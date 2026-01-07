@@ -22,6 +22,9 @@ import AddMoney from "./pages/AddMoney";
 import BvnNin from "./pages/BvnNin";
 import Notifications from "./pages/Notifications";
 import WebAuth from "./pages/WebAuth";
+import WebAbout from "./pages/WebAbout";
+import WebContact from "./pages/WebContact";
+import WebPricing from "./pages/WebPricing";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -68,6 +71,9 @@ function AppRoutes() {
       {/* Website routes - separate from app */}
       <Route path="/website" element={<Index />} />
       <Route path="/weblogin" element={<WebAuth />} />
+      <Route path="/webabout" element={<WebAbout />} />
+      <Route path="/webcontact" element={<WebContact />} />
+      <Route path="/webpricing" element={<WebPricing />} />
       
       {/* App routes */}
       <Route 
