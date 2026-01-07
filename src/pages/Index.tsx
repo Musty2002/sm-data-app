@@ -89,10 +89,10 @@ const Index = () => {
             </nav>
 
             <div className="hidden lg:flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate('/auth')}>
+              <Button variant="ghost" onClick={() => navigate('/weblogin')}>
                 Sign In
               </Button>
-              <Button onClick={() => navigate('/auth')} size="lg">
+              <Button onClick={() => navigate('/weblogin')} size="lg">
                 Get Started Free
               </Button>
             </div>
@@ -123,10 +123,10 @@ const Index = () => {
                   Pricing
                 </button>
                 <div className="flex gap-3 pt-4">
-                  <Button variant="outline" onClick={() => navigate('/auth')} className="flex-1">
+                  <Button variant="outline" onClick={() => navigate('/weblogin')} className="flex-1">
                     Sign In
                   </Button>
-                  <Button onClick={() => navigate('/auth')} className="flex-1">
+                  <Button onClick={() => navigate('/weblogin')} className="flex-1">
                     Get Started
                   </Button>
                 </div>
@@ -154,7 +154,7 @@ const Index = () => {
                 Join over 50,000 Nigerians who trust SM Data App for fast, reliable, and secure payments.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-10">
-                <Button onClick={() => navigate('/auth')} size="lg" className="gap-2 text-lg px-8 py-6">
+                <Button onClick={() => navigate('/weblogin')} size="lg" className="gap-2 text-lg px-8 py-6">
                   Start Saving Now
                   <ArrowRight className="w-5 h-5" />
                 </Button>
@@ -361,7 +361,7 @@ const Index = () => {
             </div>
           </div>
           <div className="text-center mt-12">
-            <Button onClick={() => navigate('/auth')} size="lg" className="gap-2 text-lg px-8 py-6">
+            <Button onClick={() => navigate('/weblogin')} size="lg" className="gap-2 text-lg px-8 py-6">
               Create Free Account
               <ArrowRight className="w-5 h-5" />
             </Button>
@@ -428,7 +428,7 @@ const Index = () => {
             </div>
           </div>
           <div className="text-center mt-10">
-            <Button variant="outline" size="lg" onClick={() => navigate('/auth')} className="gap-2">
+            <Button variant="outline" size="lg" onClick={() => navigate('/weblogin')} className="gap-2">
               View All Prices
               <ChevronRight className="w-4 h-4" />
             </Button>
@@ -450,7 +450,7 @@ const Index = () => {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
-                  onClick={() => navigate('/auth')} 
+                  onClick={() => navigate('/weblogin')} 
                   size="lg" 
                   variant="secondary"
                   className="gap-2 text-lg px-8 py-6"
