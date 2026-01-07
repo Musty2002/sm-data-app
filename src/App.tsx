@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 
 // Pages
+import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Services from "./pages/Services";
@@ -23,6 +24,20 @@ import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+// Check if current hostname is the website subdomain (www) or app subdomain
+const isWebsiteSubdomain = () => {
+  const hostname = window.location.hostname;
+  // Website subdomain patterns: www.*, or root domain without app prefix
+  // App subdomain patterns: app.*
+  return hostname.startsWith('www.') || 
+         (!hostname.startsWith('app.') && !hostname.includes('localhost'));
+};
+
+const isAppSubdomain = () => {
+  const hostname = window.location.hostname;
+  return hostname.startsWith('app.') || hostname.includes('localhost');
+};
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -63,7 +78,13 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      {/* Landing page - accessible on website subdomain, redirects to dashboard on app subdomain */}
+      <Route 
+        path="/" 
+        element={
+          isAppSubdomain() ? <Navigate to="/dashboard" replace /> : <Index />
+        } 
+      />
       <Route
         path="/auth"
         element={
