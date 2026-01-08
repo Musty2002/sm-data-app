@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/((?!website|weblogin|webabout|webcontact|webpricing).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
