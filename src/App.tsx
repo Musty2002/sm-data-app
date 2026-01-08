@@ -75,13 +75,11 @@ function AppRoutes() {
       <Route path="/webcontact" element={<WebContact />} />
       <Route path="/webpricing" element={<WebPricing />} />
       
-      {/* Root redirects to website */}
+      {/* App routes */}
       <Route 
         path="/" 
-        element={<Index />} 
+        element={<Navigate to="/dashboard" replace />} 
       />
-      
-      {/* App routes */}
       <Route
         path="/auth"
         element={
