@@ -1,73 +1,108 @@
-# Welcome to your Lovable project
+# SM Data App
 
-## Project info
+A modern mobile-first web application for affordable data, airtime, and bill payments in Nigeria.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Overview
 
-## How can I edit this code?
+SM Data App provides a seamless platform for Nigerians to purchase data bundles, airtime, pay electricity bills, and manage TV subscriptions at competitive rates. Built with a focus on user experience, security, and reliability.
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- **Data Bundles** - Affordable data packages for MTN, Airtel, Glo, and 9Mobile
+- **Airtime Top-up** - Instant airtime recharge for all Nigerian networks
+- **Electricity Bills** - Pay NEPA/electricity bills for all distribution companies
+- **TV Subscriptions** - Renew DStv, GOtv, and Startimes subscriptions
+- **Money Transfer** - Send money to any Nigerian bank account
+- **Referral Program** - Earn rewards by referring friends and family
+- **Wallet System** - Secure digital wallet for quick transactions
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Tech Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Frontend**: React 18, TypeScript, Vite
+- **Styling**: Tailwind CSS, shadcn/ui components
+- **Backend**: Supabase (PostgreSQL, Authentication, Edge Functions)
+- **State Management**: TanStack Query
+- **Routing**: React Router v6
 
-**Use your preferred IDE**
+## Getting Started
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Node.js 18+ 
+- npm or bun package manager
 
-Follow these steps:
+### Installation
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. Clone the repository:
+```bash
+git clone https://github.com/your-username/sm-data-app.git
+cd sm-data-app
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Install dependencies:
+```bash
+npm install
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Set up environment variables:
+```bash
+cp .env.example .env
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. Start the development server:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Project Structure
 
-**Use GitHub Codespaces**
+```
+src/
+├── assets/          # Images and static assets
+├── components/      # Reusable UI components
+│   ├── dashboard/   # Dashboard-specific components
+│   ├── layout/      # Layout components
+│   └── ui/          # shadcn/ui components
+├── hooks/           # Custom React hooks
+├── integrations/    # Third-party integrations
+├── lib/             # Utility functions
+├── pages/           # Page components
+└── types/           # TypeScript type definitions
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Available Scripts
 
-## What technologies are used for this project?
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
 
-This project is built with:
+## Environment Variables
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+| Variable | Description |
+|----------|-------------|
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anonymous key |
 
-## How can I deploy this project?
+## Contributing
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Can I connect a custom domain to my Lovable project?
+## License
 
-Yes, you can!
+This project is proprietary software. All rights reserved.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Contact
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- **Email**: support@smdataapp.com
+- **Phone**: 09026486913
+
+---
+
+© 2024 SM Data App. All rights reserved.
