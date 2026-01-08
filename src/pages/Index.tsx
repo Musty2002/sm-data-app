@@ -38,19 +38,7 @@ const features = [
   { icon: Gift, title: 'Rewarding Referral Program', description: 'Earn ₦100 for every friend you refer when they purchase at least 1GB of data.' },
 ];
 
-const testimonials = [
-  { name: 'Adebayo Ogundimu', role: 'Business Owner', rating: 5, text: 'SM Data App has been a game-changer for my business! I save thousands monthly on data and airtime for my team. The prices are unbeatable.' },
-  { name: 'Chioma Eze', role: 'Student', rating: 5, text: 'Super fast and reliable. As a student, every kobo counts and SM Data App helps me stretch my budget. I recommend it to all my coursemates!' },
-  { name: 'Ibrahim Mohammed', role: 'Freelancer', rating: 5, text: 'The referral program is amazing! I\'ve earned over ₦15,000 just by sharing with friends and family. The app pays for itself!' },
-  { name: 'Funke Adeyemi', role: 'Teacher', rating: 5, text: 'I use SM Data App to pay all my bills - electricity, DStv, and data. Everything in one place, and the cashback is a nice bonus!' },
-];
 
-const stats = [
-  { value: '50,000+', label: 'Active Users' },
-  { value: '₦500M+', label: 'Transactions Processed' },
-  { value: '99.9%', label: 'Uptime' },
-  { value: '4.9/5', label: 'User Rating' },
-];
 
 const Index = () => {
   const navigate = useNavigate();
@@ -193,16 +181,6 @@ const Index = () => {
                     <p className="text-sm font-semibold -mt-0.5">App Store</p>
                   </div>
                 </a>
-              </div>
-              
-              {/* Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 lg:gap-8">
-                {stats.map((stat) => (
-                  <div key={stat.label} className="text-center lg:text-left">
-                    <p className="text-2xl lg:text-3xl font-bold text-foreground">{stat.value}</p>
-                    <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  </div>
-                ))}
               </div>
             </div>
             
@@ -401,32 +379,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="py-20 lg:py-28">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <p className="text-primary font-semibold mb-3">TESTIMONIALS</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">What Our Users Say</h2>
-            <p className="text-lg text-muted-foreground">Don't just take our word for it - hear from our satisfied customers</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-card rounded-2xl p-6 shadow-sm border border-border">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 text-yellow-500 fill-current" />
-                  ))}
-                </div>
-                <p className="text-foreground mb-6 leading-relaxed">"{testimonial.text}"</p>
-                <div>
-                  <p className="font-bold text-foreground">{testimonial.name}</p>
-                  <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Pricing Preview */}
       <section id="pricing" className="py-20 lg:py-28 bg-muted/50">

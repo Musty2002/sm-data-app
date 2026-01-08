@@ -123,37 +123,18 @@ const WebAbout = () => {
                 Built by Nigerians, for Nigerians
               </h2>
               <p className="text-muted-foreground mb-4">
-                SM Data App was founded in 2021 with a simple yet powerful vision: to make data, airtime, 
+                SM Data App was founded with a simple yet powerful vision: to make data, airtime, 
                 and digital payments affordable for every Nigerian. We saw how much money people were 
                 spending on basic digital services and knew there had to be a better way.
               </p>
               <p className="text-muted-foreground mb-4">
-                Today, we serve over 50,000 active users who trust us with their daily transactions. 
                 From students stretching their allowances to business owners managing team expenses, 
                 we've become the go-to platform for affordable digital services.
               </p>
               <p className="text-muted-foreground">
-                Our commitment to low prices, instant delivery, and excellent customer service has 
-                earned us the trust of thousands across Nigeria. And we're just getting started.
+                Our commitment to low prices, instant delivery, and excellent customer service is 
+                what drives us every day. And we're just getting started.
               </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-card rounded-2xl p-6 text-center shadow-sm">
-                <p className="text-4xl font-bold text-primary mb-2">50K+</p>
-                <p className="text-muted-foreground">Active Users</p>
-              </div>
-              <div className="bg-card rounded-2xl p-6 text-center shadow-sm">
-                <p className="text-4xl font-bold text-secondary mb-2">₦500M+</p>
-                <p className="text-muted-foreground">Transactions</p>
-              </div>
-              <div className="bg-card rounded-2xl p-6 text-center shadow-sm">
-                <p className="text-4xl font-bold text-green-600 mb-2">99.9%</p>
-                <p className="text-muted-foreground">Uptime</p>
-              </div>
-              <div className="bg-card rounded-2xl p-6 text-center shadow-sm">
-                <p className="text-4xl font-bold text-yellow-600 mb-2">4.9/5</p>
-                <p className="text-muted-foreground">User Rating</p>
-              </div>
             </div>
           </div>
         </div>

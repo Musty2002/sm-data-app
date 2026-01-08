@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import logo from "@/assets/logo.jpeg";
+import logo from "@/assets/sm-data-logo.jpeg";
 
 const WebAuth = () => {
   const [email, setEmail] = useState("");
@@ -100,7 +100,7 @@ const WebAuth = () => {
             <div className="flex justify-center mb-4">
               <img src={logo} alt="SM Data" className="h-16 w-16 rounded-xl" />
             </div>
-            <CardTitle className="text-2xl font-bold">Welcome to SM Data</CardTitle>
+            <CardTitle className="text-2xl font-bold">Welcome to SM Data App</CardTitle>
             <CardDescription>
               Sign in to your account or create a new one
             </CardDescription>
