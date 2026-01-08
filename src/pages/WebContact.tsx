@@ -19,8 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const contactInfo = [
   { icon: Mail, label: 'Email', value: 'support@smdataapp.com', description: 'Send us an email anytime' },
-  { icon: Phone, label: 'Phone', value: '+234 800 123 4567', description: 'Mon-Fri from 8am to 6pm' },
-  { icon: MapPin, label: 'Office', value: 'Lagos, Nigeria', description: 'Come say hello' },
+  { icon: Phone, label: 'Phone', value: '09026486913', description: 'Mon-Fri from 8am to 6pm' },
   { icon: Clock, label: 'Response Time', value: 'Within 24 hours', description: 'We reply fast!' },
 ];
 

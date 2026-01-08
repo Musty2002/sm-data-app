@@ -1,37 +1,23 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import logo from '@/assets/sm-data-logo.jpeg';
+import ceoImage from '@/assets/ceo-shamsuddeen.jpeg';
 import { 
   Users, 
   Target, 
   Heart, 
   Award,
-  CheckCircle2,
   ArrowRight,
   Menu,
   X
 } from 'lucide-react';
 import { useState } from 'react';
 
-const team = [
-  { name: 'Samuel Adeyemi', role: 'Founder & CEO', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face' },
-  { name: 'Mary Okonkwo', role: 'Head of Operations', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&h=300&fit=crop&crop=face' },
-  { name: 'David Eze', role: 'CTO', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=300&fit=crop&crop=face' },
-  { name: 'Fatima Ibrahim', role: 'Customer Success Lead', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=300&fit=crop&crop=face' },
-];
-
 const values = [
   { icon: Target, title: 'Mission-Driven', description: 'We exist to make digital services affordable for every Nigerian.' },
   { icon: Heart, title: 'Customer First', description: 'Every decision we make starts with our customers in mind.' },
   { icon: Award, title: 'Excellence', description: 'We strive for excellence in everything we do, from service to support.' },
   { icon: Users, title: 'Community', description: 'We believe in building a community of empowered users.' },
-];
-
-const milestones = [
-  { year: '2021', title: 'Founded', description: 'SM Data App was born with a vision to democratize access to affordable digital services.' },
-  { year: '2022', title: '10,000 Users', description: 'We hit our first major milestone, proving our value to Nigerian consumers.' },
-  { year: '2023', title: 'Expanded Services', description: 'Added electricity bills, TV subscriptions, and money transfer to our platform.' },
-  { year: '2024', title: '50,000+ Users', description: 'Growing stronger every day with a community of loyal users across Nigeria.' },
 ];
 
 const WebAbout = () => {
@@ -194,51 +180,23 @@ const WebAbout = () => {
         </div>
       </section>
 
-      {/* Timeline Section */}
-      <section className="py-16 lg:py-24 bg-muted/50">
-        <div className="max-w-4xl mx-auto px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <p className="text-primary font-semibold mb-3">OUR JOURNEY</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground">Milestones</h2>
-          </div>
-          <div className="space-y-8">
-            {milestones.map((milestone, index) => (
-              <div key={milestone.year} className="flex gap-6 items-start">
-                <div className="w-20 flex-shrink-0">
-                  <span className="text-2xl font-bold text-primary">{milestone.year}</span>
-                </div>
-                <div className="flex-1 bg-card rounded-2xl p-6 shadow-sm border border-border">
-                  <div className="flex items-center gap-3 mb-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    <h3 className="font-bold text-lg text-foreground">{milestone.title}</h3>
-                  </div>
-                  <p className="text-muted-foreground">{milestone.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Team Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-16 lg:py-24 bg-muted/50">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-primary font-semibold mb-3">OUR TEAM</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground">Meet the People Behind SM Data</h2>
+            <p className="text-primary font-semibold mb-3">OUR LEADER</p>
+            <h2 className="text-3xl lg:text-4xl font-bold text-foreground">Meet the Founder</h2>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {team.map((member) => (
-              <div key={member.name} className="bg-card rounded-2xl p-6 text-center shadow-sm border border-border">
-                <img 
-                  src={member.image} 
-                  alt={member.name}
-                  className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
-                />
-                <h3 className="font-bold text-lg text-foreground">{member.name}</h3>
-                <p className="text-muted-foreground text-sm">{member.role}</p>
-              </div>
-            ))}
+          <div className="flex justify-center">
+            <div className="bg-card rounded-2xl p-8 text-center shadow-sm border border-border max-w-sm">
+              <img 
+                src={ceoImage} 
+                alt="Shamsuddeen Muhammad"
+                className="w-32 h-32 rounded-full mx-auto mb-6 object-cover"
+              />
+              <h3 className="font-bold text-xl text-foreground">Shamsuddeen Muhammad</h3>
+              <p className="text-primary font-medium">CEO & Founder</p>
+            </div>
           </div>
         </div>
       </section>
