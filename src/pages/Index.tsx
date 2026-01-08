@@ -187,36 +187,77 @@ const Index = () => {
             {/* Hero Visual */}
             <div className="relative flex justify-center lg:justify-end">
               <div className="relative">
-                {/* Phone mockup */}
-                <div className="w-72 lg:w-80 h-[580px] lg:h-[640px] bg-card rounded-[3rem] shadow-2xl border-8 border-foreground/10 overflow-hidden">
-                  <div className="h-8 bg-foreground/10 flex items-center justify-center">
-                    <div className="w-24 h-5 bg-foreground/20 rounded-full" />
-                  </div>
-                  <div className="p-5">
-                    <div className="flex items-center gap-3 mb-5">
-                      <img src={logo} alt="Logo" className="w-12 h-12 rounded-full" />
-                      <div>
-                        <p className="font-semibold text-foreground">SM Data App</p>
-                        <p className="text-sm text-muted-foreground">Welcome back!</p>
+                {/* iPhone-style Phone mockup */}
+                <div className="relative w-72 lg:w-80 h-[580px] lg:h-[640px]">
+                  {/* Phone outer frame */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-gray-800 via-gray-900 to-gray-800 rounded-[3rem] shadow-2xl" />
+                  
+                  {/* Phone inner bezel */}
+                  <div className="absolute inset-[3px] bg-gradient-to-b from-gray-700 to-gray-800 rounded-[2.8rem]" />
+                  
+                  {/* Screen area */}
+                  <div className="absolute inset-[12px] bg-card rounded-[2.4rem] overflow-hidden">
+                    {/* Dynamic Island / Notch */}
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
+                      <div className="w-28 h-8 bg-black rounded-full flex items-center justify-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-gray-800 ring-1 ring-gray-700" />
+                        <div className="w-2 h-2 rounded-full bg-gray-700" />
                       </div>
                     </div>
-                    <div className="gradient-primary rounded-2xl p-5 text-white mb-5">
-                      <p className="text-sm opacity-80">Wallet Balance</p>
-                      <p className="text-3xl font-bold">₦125,000</p>
-                      <p className="text-xs opacity-70 mt-1">+₦2,500 cashback earned</p>
-                    </div>
-                    <p className="text-sm font-semibold text-foreground mb-3">Quick Services</p>
-                    <div className="grid grid-cols-3 gap-3">
-                      {services.slice(0, 6).map(({ icon: Icon, label, color }) => (
-                        <div key={label} className="flex flex-col items-center p-3">
-                          <div className={`w-12 h-12 rounded-xl ${color} flex items-center justify-center mb-2`}>
-                            <Icon className="w-6 h-6" />
-                          </div>
-                          <span className="text-xs text-foreground text-center">{label.split(' ')[0]}</span>
+                    
+                    {/* Status bar */}
+                    <div className="h-12 bg-card flex items-end justify-between px-8 pb-1">
+                      <span className="text-xs font-semibold text-foreground">9:41</span>
+                      <div className="flex items-center gap-1">
+                        <div className="flex gap-[2px]">
+                          <div className="w-[3px] h-2 bg-foreground rounded-sm" />
+                          <div className="w-[3px] h-3 bg-foreground rounded-sm" />
+                          <div className="w-[3px] h-4 bg-foreground rounded-sm" />
+                          <div className="w-[3px] h-3 bg-foreground/40 rounded-sm" />
                         </div>
-                      ))}
+                        <div className="ml-1 w-6 h-3 border border-foreground rounded-sm relative">
+                          <div className="absolute inset-[2px] right-[4px] bg-green-500 rounded-sm" />
+                          <div className="absolute -right-[2px] top-1/2 -translate-y-1/2 w-[2px] h-1.5 bg-foreground rounded-r-sm" />
+                        </div>
+                      </div>
                     </div>
+                    
+                    {/* App content */}
+                    <div className="p-5 pt-2">
+                      <div className="flex items-center gap-3 mb-5">
+                        <img src={logo} alt="Logo" className="w-12 h-12 rounded-full" />
+                        <div>
+                          <p className="font-semibold text-foreground">SM Data App</p>
+                          <p className="text-sm text-muted-foreground">Welcome back!</p>
+                        </div>
+                      </div>
+                      <div className="gradient-primary rounded-2xl p-5 text-white mb-5">
+                        <p className="text-sm opacity-80">Wallet Balance</p>
+                        <p className="text-3xl font-bold">₦125,000</p>
+                        <p className="text-xs opacity-70 mt-1">+₦2,500 cashback earned</p>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground mb-3">Quick Services</p>
+                      <div className="grid grid-cols-3 gap-3">
+                        {services.slice(0, 6).map(({ icon: Icon, label, color }) => (
+                          <div key={label} className="flex flex-col items-center p-2">
+                            <div className={`w-11 h-11 rounded-xl ${color} flex items-center justify-center mb-1.5`}>
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <span className="text-[10px] text-foreground text-center">{label.split(' ')[0]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Home indicator */}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-foreground/30 rounded-full" />
                   </div>
+                  
+                  {/* Side buttons */}
+                  <div className="absolute -left-[2px] top-28 w-[3px] h-8 bg-gray-700 rounded-l-sm" />
+                  <div className="absolute -left-[2px] top-44 w-[3px] h-14 bg-gray-700 rounded-l-sm" />
+                  <div className="absolute -left-[2px] top-64 w-[3px] h-14 bg-gray-700 rounded-l-sm" />
+                  <div className="absolute -right-[2px] top-36 w-[3px] h-20 bg-gray-700 rounded-r-sm" />
                 </div>
                 
                 {/* Floating cards */}
