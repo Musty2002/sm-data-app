@@ -1,0 +1,21 @@
+{
+  "rewrites": [
+    {
+      "source": "/((?!website|weblogin|webabout|webcontact|webpricing).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/website",
+      "permanent": false,
+      "has": [
+        {
+          "type": "host",
+          "value": "www.smdataapp.com.ng"
+        }
+      ]
+    }
+  ]
+}
