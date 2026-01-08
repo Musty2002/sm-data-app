@@ -391,7 +391,7 @@ const Index = () => {
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <div className="bg-card rounded-2xl p-8 shadow-sm border border-border text-center">
               <p className="text-sm text-muted-foreground mb-2">MTN Data</p>
-              <p className="text-4xl font-bold text-foreground mb-1">₦250</p>
+              <p className="text-4xl font-bold text-foreground mb-1">&nbsp;</p>
               <p className="text-sm text-muted-foreground mb-4">for 1GB (30 days)</p>
               <p className="text-xs text-green-600 font-medium">Save up to 10%</p>
             </div>
@@ -400,13 +400,13 @@ const Index = () => {
                 POPULAR
               </div>
               <p className="text-sm text-muted-foreground mb-2">Airtel Data</p>
-              <p className="text-4xl font-bold text-foreground mb-1">₦230</p>
+              <p className="text-4xl font-bold text-foreground mb-1">&nbsp;</p>
               <p className="text-sm text-muted-foreground mb-4">for 1GB (30 days)</p>
               <p className="text-xs text-green-600 font-medium">Save up to 12%</p>
             </div>
             <div className="bg-card rounded-2xl p-8 shadow-sm border border-border text-center">
               <p className="text-sm text-muted-foreground mb-2">Glo Data</p>
-              <p className="text-4xl font-bold text-foreground mb-1">₦220</p>
+              <p className="text-4xl font-bold text-foreground mb-1">&nbsp;</p>
               <p className="text-sm text-muted-foreground mb-4">for 1GB (30 days)</p>
               <p className="text-xs text-green-600 font-medium">Save up to 15%</p>
             </div>
