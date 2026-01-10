@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, fullName: string, phone: string, referralCode?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -107,6 +107,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     });
+    
+    // If signup successful, automatically create virtual account with PaymentPoint
+    if (!error && data.user && data.session) {
+      try {
+        console.log('Creating virtual account for new user...');
+        const { data: vaData, error: vaError } = await supabase.functions.invoke('create-virtual-account', {
+          body: {
+            userId: data.user.id,
+            email: email,
+            name: fullName,
+            phoneNumber: phone,
+          }
+        });
+        
+        if (vaError) {
+          console.error('Error creating virtual account:', vaError);
+        } else {
+          console.log('Virtual account created:', vaData);
+          // Refresh profile to get the new account number
+          setTimeout(() => fetchProfile(data.user!.id), 1000);
+        }
+      } catch (vaErr) {
+        console.error('Failed to create virtual account:', vaErr);
+      }
+    }
     
     return { error: error as Error | null };
   };

@@ -81,7 +81,8 @@ export function AccountCard() {
 
   const hasVirtualAccount = profile?.account_number && profile.account_number.length === 10;
   const bankName = hasVirtualAccount ? 'PalmPay' : 'SM Data';
-  const accountName = (profile as any)?.virtual_account_name || profile?.full_name || 'User';
+  const accountName = profile?.virtual_account_name || profile?.full_name || 'User';
+  const isLoadingAccount = !profile?.account_number;
 
   return (
     <div className="gradient-primary rounded-2xl p-5 text-primary-foreground mx-4 shadow-lg">
