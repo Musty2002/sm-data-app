@@ -108,11 +108,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update the user's profile with the virtual account number
+    // Update the user's profile with the virtual account number and name
     const { error: updateError } = await supabase
       .from("profiles")
       .update({ 
         account_number: bankAccount.accountNumber,
+        virtual_account_name: bankAccount.accountName,
       })
       .eq("user_id", userId);
 

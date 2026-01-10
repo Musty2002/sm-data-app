@@ -57,6 +57,7 @@ export type Database = {
           referred_by: string | null
           updated_at: string
           user_id: string
+          virtual_account_name: string | null
         }
         Insert: {
           account_number: string
@@ -70,6 +71,7 @@ export type Database = {
           referred_by?: string | null
           updated_at?: string
           user_id: string
+          virtual_account_name?: string | null
         }
         Update: {
           account_number?: string
@@ -83,6 +85,7 @@ export type Database = {
           referred_by?: string | null
           updated_at?: string
           user_id?: string
+          virtual_account_name?: string | null
         }
         Relationships: [
           {
