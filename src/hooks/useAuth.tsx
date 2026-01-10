@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, retryCount = 0): Promise<void> => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -34,10 +34,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (data) {
       setProfile(data as Profile);
+    } else if (retryCount < 3) {
+      // Retry after a short delay - the database trigger might not have completed yet
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return fetchProfile(userId, retryCount + 1);
     }
   };
 
-  const fetchWallet = async (userId: string) => {
+  const fetchWallet = async (userId: string, retryCount = 0): Promise<void> => {
     const { data } = await supabase
       .from('wallets')
       .select('*')
@@ -46,6 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (data) {
       setWallet(data as Wallet);
+    } else if (retryCount < 3) {
+      // Retry after a short delay - the database trigger might not have completed yet
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return fetchWallet(userId, retryCount + 1);
     }
   };
 
