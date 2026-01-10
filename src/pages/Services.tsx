@@ -4,7 +4,6 @@ import {
   Phone, 
   Zap, 
   Tv, 
-  Send,
   Gift,
   BookOpen,
   Coins,
@@ -13,13 +12,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 const services = [
-  { 
-    icon: Send, 
-    label: 'Transfer', 
-    description: 'Send money to others',
-    path: '/transfer', 
-    color: 'bg-blue-100 text-blue-600' 
-  },
   { 
     icon: Phone, 
     label: 'Airtime', 
