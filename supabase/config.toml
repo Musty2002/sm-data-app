@@ -1,7 +1,7 @@
 project_id = "uszvrhpcmtmpxlcgfhjp"
 
 [functions.create-virtual-account]
-verify_jwt = true
+verify_jwt = false
 
 [functions.paymentpoint-webhook]
 verify_jwt = false
