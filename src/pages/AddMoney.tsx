@@ -1,14 +1,17 @@
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { ArrowLeft, Copy, Building2 } from 'lucide-react';
+import { ArrowLeft, Copy, Building2, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AddMoney() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -17,6 +20,58 @@ export default function AddMoney() {
       description: `${label} copied to clipboard`,
     });
   };
+
+  const createVirtualAccount = async () => {
+    if (!user || !profile) return;
+
+    setIsCreatingAccount(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-virtual-account', {
+        body: {
+          userId: user.id,
+          email: profile.email || user.email,
+          name: profile.full_name,
+          phoneNumber: profile.phone,
+        },
+      });
+
+      if (error) {
+        console.error('Error creating virtual account:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to create virtual account. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (data?.success) {
+        toast({
+          title: 'Success!',
+          description: `Virtual account created: ${data.accountNumber}`,
+        });
+        // Refresh profile to get the new account number
+        await refreshProfile();
+      } else {
+        toast({
+          title: 'Error',
+          description: data?.error || 'Failed to create virtual account',
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      toast({
+        title: 'Error',
+        description: 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingAccount(false);
+    }
+  };
+
+  const hasVirtualAccount = profile?.account_number && profile.account_number.length === 10;
 
   return (
     <MobileLayout showNav={false}>
@@ -42,66 +97,90 @@ export default function AddMoney() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="bg-secondary/50 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Bank Name</p>
-                    <p className="font-semibold text-foreground">Providus Bank</p>
+            {hasVirtualAccount ? (
+              <div className="space-y-4">
+                <div className="bg-secondary/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Bank Name</p>
+                      <p className="font-semibold text-foreground">PalmPay</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard('PalmPay', 'Bank name')}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => copyToClipboard('Providus Bank', 'Bank name')}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
                 </div>
-              </div>
 
-              <div className="bg-secondary/50 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Account Number</p>
-                    <p className="font-semibold text-foreground text-lg tracking-wide">
-                      {profile?.account_number || '----------'}
-                    </p>
+                <div className="bg-secondary/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Account Number</p>
+                      <p className="font-semibold text-foreground text-lg tracking-wide">
+                        {profile?.account_number}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(profile?.account_number || '', 'Account number')}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => copyToClipboard(profile?.account_number || '', 'Account number')}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
                 </div>
-              </div>
 
-              <div className="bg-secondary/50 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Account Name</p>
-                    <p className="font-semibold text-foreground">{profile?.full_name || 'User'}</p>
+                <div className="bg-secondary/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Account Name</p>
+                      <p className="font-semibold text-foreground">{profile?.full_name || 'User'}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(profile?.full_name || '', 'Account name')}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => copyToClipboard(profile?.full_name || '', 'Account name')}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-center py-6">
+                <p className="text-muted-foreground mb-4">
+                  You don't have a virtual account yet. Create one to receive payments.
+                </p>
+                <Button 
+                  onClick={createVirtualAccount} 
+                  disabled={isCreatingAccount}
+                  className="w-full"
+                >
+                  {isCreatingAccount ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating Account...
+                    </>
+                  ) : (
+                    'Create Virtual Account'
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Info */}
-          <div className="bg-accent/10 rounded-xl p-4">
-            <p className="text-sm text-foreground">
-              <span className="font-medium">Note:</span> Transfer any amount to the account above.
-              Your wallet will be credited automatically within minutes.
-            </p>
-          </div>
+          {hasVirtualAccount && (
+            <div className="bg-accent/10 rounded-xl p-4">
+              <p className="text-sm text-foreground">
+                <span className="font-medium">Note:</span> Transfer any amount to the account above.
+                Your wallet will be credited automatically within minutes.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </MobileLayout>
