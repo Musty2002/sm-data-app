@@ -81,6 +81,7 @@ export function AccountCard() {
 
   const hasVirtualAccount = profile?.account_number && profile.account_number.length === 10;
   const bankName = hasVirtualAccount ? 'PalmPay' : 'SM Data';
+  const accountName = (profile as any)?.virtual_account_name || profile?.full_name || 'User';
 
   return (
     <div className="gradient-primary rounded-2xl p-5 text-primary-foreground mx-4 shadow-lg">
@@ -97,7 +98,7 @@ export function AccountCard() {
             </div>
           </div>
         </div>
-        <span className="text-xs opacity-75 bg-white/10 px-2 py-1 rounded">SM Data</span>
+        <span className="text-xs opacity-75 bg-white/10 px-2 py-1 rounded">{accountName}</span>
       </div>
 
       {/* User Name */}
