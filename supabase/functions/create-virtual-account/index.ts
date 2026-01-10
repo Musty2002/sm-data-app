@@ -20,14 +20,53 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const paymentPointApiSecret = Deno.env.get("PAYMENTPOINT_API_SECRET")!;
     const paymentPointApiKey = Deno.env.get("PAYMENTPOINT_API_KEY")!;
     const paymentPointBusinessId = Deno.env.get("PAYMENTPOINT_BUSINESS_ID")!;
 
+    // Validate JWT
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.error("No authorization header provided");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getUser(token);
+    
+    if (claimsError || !claimsData?.user) {
+      console.error("Invalid JWT:", claimsError);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const authenticatedUserId = claimsData.user.id;
+    console.log("Authenticated user:", authenticatedUserId);
+
+    // Use service role client for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { userId, email, name, phoneNumber }: CreateVirtualAccountRequest = await req.json();
+
+    // Verify the request is for the authenticated user
+    if (userId !== authenticatedUserId) {
+      console.error("User ID mismatch:", userId, authenticatedUserId);
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log(`Creating virtual account for user: ${userId}, email: ${email}`);
 
