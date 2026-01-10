@@ -29,6 +29,33 @@ export default function History() {
     }
   }, [user, filter]);
 
+  // Real-time transaction updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('transactions-history-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('New transaction:', payload);
+          // Add new transaction to the top of the list
+          setTransactions((prev) => [payload.new as Transaction, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const fetchTransactions = async () => {
     setLoading(true);
     let query = supabase
