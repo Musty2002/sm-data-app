@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Copy, Plus, History } from 'lucide-react';
+import { Eye, EyeOff, Copy, Plus, History, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -7,9 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 export function AccountCard() {
-  const { profile, wallet, user, refreshWallet } = useAuth();
+  const { profile, wallet, user, refreshWallet, refreshProfile } = useAuth();
   const [showBalance, setShowBalance] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('just now');
+  const [isRetrying, setIsRetrying] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -84,6 +85,43 @@ export function AccountCard() {
   const bankName = isAccountReady ? 'PalmPay' : null;
   const accountName = profile?.virtual_account_name || null;
 
+  const retryVirtualAccountCreation = async () => {
+    if (!user || !profile) return;
+    
+    setIsRetrying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-virtual-account', {
+        body: {
+          userId: user.id,
+          email: profile.email || user.email,
+          name: profile.full_name,
+          phoneNumber: profile.phone,
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: 'Account Created!',
+        description: 'Your virtual account has been set up successfully.',
+      });
+
+      // Refresh profile to get the new account details
+      await refreshProfile();
+    } catch (error: any) {
+      console.error('Error creating virtual account:', error);
+      toast({
+        title: 'Failed to create account',
+        description: error.message || 'Please try again later.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   return (
     <div className="gradient-primary rounded-2xl p-5 text-primary-foreground mx-4 shadow-lg">
       {/* Account Info */}
@@ -101,7 +139,19 @@ export function AccountCard() {
                 </div>
               </>
             ) : (
-              <span className="text-xs opacity-75 animate-pulse">Creating your account...</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs opacity-75">
+                  {isRetrying ? 'Creating account...' : 'Account not ready'}
+                </span>
+                <button
+                  onClick={retryVirtualAccountCreation}
+                  disabled={isRetrying}
+                  className="p-1 hover:bg-white/10 rounded disabled:opacity-50"
+                  title="Retry account creation"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isRetrying ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
             )}
           </div>
         </div>
