@@ -92,6 +92,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const createVirtualAccountWithRetry = async (
+    userId: string,
+    email: string,
+    name: string,
+    phoneNumber: string,
+    maxRetries = 3
+  ): Promise<void> => {
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        console.log(`Creating virtual account (attempt ${attempt + 1}/${maxRetries})...`);
+        
+        const { data: vaData, error: vaError } = await supabase.functions.invoke('create-virtual-account', {
+          body: { userId, email, name, phoneNumber }
+        });
+        
+        if (vaError) {
+          throw vaError;
+        }
+        
+        console.log('Virtual account created successfully:', vaData);
+        await fetchProfile(userId);
+        return;
+      } catch (err) {
+        console.error(`Attempt ${attempt + 1} failed:`, err);
+        
+        if (attempt < maxRetries - 1) {
+          const backoffMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+          console.log(`Retrying in ${backoffMs / 1000}s...`);
+          await delay(backoffMs);
+        }
+      }
+    }
+    
+    console.error('All retry attempts failed for virtual account creation');
+  };
+
   const signUp = async (email: string, password: string, fullName: string, phone: string, referralCode?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
@@ -108,29 +146,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
     
-    // If signup successful, automatically create virtual account with PaymentPoint
+    // If signup successful, automatically create virtual account with retry
     if (!error && data.user && data.session) {
-      try {
-        console.log('Creating virtual account for new user...');
-        const { data: vaData, error: vaError } = await supabase.functions.invoke('create-virtual-account', {
-          body: {
-            userId: data.user.id,
-            email: email,
-            name: fullName,
-            phoneNumber: phone,
-          }
-        });
-        
-        if (vaError) {
-          console.error('Error creating virtual account:', vaError);
-        } else {
-          console.log('Virtual account created:', vaData);
-          // Refresh profile to get the new account number
-          setTimeout(() => fetchProfile(data.user!.id), 1000);
-        }
-      } catch (vaErr) {
-        console.error('Failed to create virtual account:', vaErr);
-      }
+      // Start the retry process in background (don't block signup)
+      createVirtualAccountWithRetry(data.user.id, email, fullName, phone);
     }
     
     return { error: error as Error | null };
