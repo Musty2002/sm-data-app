@@ -3,7 +3,6 @@ import {
   Phone, 
   Zap, 
   Tv, 
-  Send,
   Gift,
   BookOpen,
   Coins
@@ -11,7 +10,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 const services = [
-  { icon: Send, label: 'Transfer', path: '/transfer', color: 'bg-blue-100 text-blue-600' },
   { icon: Phone, label: 'Airtime', path: '/airtime', color: 'bg-green-100 text-green-600' },
   { icon: Wifi, label: 'Data', path: '/data', color: 'bg-purple-100 text-purple-600' },
   { icon: Zap, label: 'Electricity', path: '/electricity', color: 'bg-yellow-100 text-yellow-600' },
