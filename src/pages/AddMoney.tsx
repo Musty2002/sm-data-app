@@ -137,12 +137,14 @@ export default function AddMoney() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Account Name</p>
-                      <p className="font-semibold text-foreground">{profile?.full_name || 'User'}</p>
+                      <p className="font-semibold text-foreground">
+                        {(profile as any)?.virtual_account_name || profile?.full_name || 'User'}
+                      </p>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => copyToClipboard(profile?.full_name || '', 'Account name')}
+                      onClick={() => copyToClipboard((profile as any)?.virtual_account_name || profile?.full_name || '', 'Account name')}
                     >
                       <Copy className="w-4 h-4" />
                     </Button>
