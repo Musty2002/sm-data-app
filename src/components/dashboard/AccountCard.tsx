@@ -80,9 +80,9 @@ export function AccountCard() {
   };
 
   const hasVirtualAccount = profile?.account_number && profile.account_number.length === 10;
-  const bankName = hasVirtualAccount ? 'PalmPay' : 'SM Data';
-  const accountName = profile?.virtual_account_name || profile?.full_name || 'User';
-  const isLoadingAccount = !profile?.account_number;
+  const isAccountReady = hasVirtualAccount && profile?.virtual_account_name;
+  const bankName = isAccountReady ? 'PalmPay' : null;
+  const accountName = profile?.virtual_account_name || null;
 
   return (
     <div className="gradient-primary rounded-2xl p-5 text-primary-foreground mx-4 shadow-lg">
@@ -90,16 +90,24 @@ export function AccountCard() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="flex flex-col">
-            <span className="text-xs opacity-75">{bankName}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-sm opacity-90">{profile?.account_number || '----------'}</span>
-              <button onClick={copyAccountNumber} className="p-1 hover:bg-white/10 rounded">
-                <Copy className="w-4 h-4" />
-              </button>
-            </div>
+            {isAccountReady ? (
+              <>
+                <span className="text-xs opacity-75">{bankName}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm opacity-90">{profile?.account_number}</span>
+                  <button onClick={copyAccountNumber} className="p-1 hover:bg-white/10 rounded">
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <span className="text-xs opacity-75 animate-pulse">Creating your account...</span>
+            )}
           </div>
         </div>
-        <span className="text-xs opacity-75 bg-white/10 px-2 py-1 rounded">{accountName}</span>
+        {isAccountReady && (
+          <span className="text-xs opacity-75 bg-white/10 px-2 py-1 rounded">{accountName}</span>
+        )}
       </div>
 
       {/* User Name */}
@@ -129,6 +137,7 @@ export function AccountCard() {
           size="sm"
           className="flex-1 bg-white/20 hover:bg-white/30 text-white border-0"
           onClick={() => navigate('/add-money')}
+          disabled={!isAccountReady}
         >
           <Plus className="w-4 h-4 mr-1" />
           Add Money
