@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          description: string | null
+          id: string
+          key: string
+          updated_at: string | null
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -41,6 +68,39 @@ export type Database = {
           title?: string
           type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      pricing_config: {
+        Row: {
+          created_at: string | null
+          discount_percentage: number | null
+          id: string
+          is_active: boolean | null
+          markup_percentage: number | null
+          network_code: string | null
+          service_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          discount_percentage?: number | null
+          id?: string
+          is_active?: boolean | null
+          markup_percentage?: number | null
+          network_code?: string | null
+          service_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          discount_percentage?: number | null
+          id?: string
+          is_active?: boolean | null
+          markup_percentage?: number | null
+          network_code?: string | null
+          service_type?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -96,6 +156,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      push_notifications: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          message: string
+          scheduled_at: string | null
+          sent_at: string | null
+          status: string | null
+          target_audience: string | null
+          target_users: string[] | null
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          message: string
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          target_audience?: string | null
+          target_users?: string[] | null
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          message?: string
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          target_audience?: string | null
+          target_users?: string[] | null
+          title?: string
+        }
+        Relationships: []
       }
       referrals: {
         Row: {
