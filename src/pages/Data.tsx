@@ -229,12 +229,12 @@ export default function Data() {
                         }}
                         className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 hover:scale-[1.02] active:scale-[0.98] ${networkColors[network] || 'border-border bg-card'}`}
                       >
-                        <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                        <div className="w-16 h-16 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
                           {networkLogos[network] ? (
                             <img 
                               src={networkLogos[network]} 
                               alt={network} 
-                              className="w-12 h-12 object-contain"
+                              className="w-12 h-12 object-contain rounded-lg"
                             />
                           ) : (
                             <span className="text-lg font-bold">{network.charAt(0)}</span>
@@ -251,12 +251,12 @@ export default function Data() {
               {step === 'category' && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 mb-4 p-3 bg-muted/50 rounded-xl">
-                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                    <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm overflow-hidden">
                       {networkLogos[selectedNetwork!] ? (
                         <img 
                           src={networkLogos[selectedNetwork!]} 
                           alt={selectedNetwork!} 
-                          className="w-7 h-7 object-contain"
+                          className="w-7 h-7 object-contain rounded-md"
                         />
                       ) : (
                         <span className="text-sm font-bold">{selectedNetwork?.charAt(0)}</span>
@@ -295,12 +295,12 @@ export default function Data() {
               {step === 'plan' && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 mb-4 p-3 bg-muted/50 rounded-xl">
-                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                    <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm overflow-hidden">
                       {networkLogos[selectedNetwork!] ? (
                         <img 
                           src={networkLogos[selectedNetwork!]} 
                           alt={selectedNetwork!} 
-                          className="w-7 h-7 object-contain"
+                          className="w-7 h-7 object-contain rounded-md"
                         />
                       ) : (
                         <span className="text-sm font-bold">{selectedNetwork?.charAt(0)}</span>
@@ -342,12 +342,12 @@ export default function Data() {
                   {/* Selected Plan Summary */}
                   <div className="p-4 bg-muted/50 rounded-xl space-y-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                      <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
                         {networkLogos[selectedNetwork!] ? (
                           <img 
                             src={networkLogos[selectedNetwork!]} 
                             alt={selectedNetwork!} 
-                            className="w-8 h-8 object-contain"
+                            className="w-8 h-8 object-contain rounded-lg"
                           />
                         ) : (
                           <span className="font-bold">{selectedNetwork?.charAt(0)}</span>
