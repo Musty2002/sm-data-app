@@ -89,7 +89,7 @@ export default function Data() {
         body: {
           action: 'purchase',
           serviceType: 'data',
-          plan: selectedBundle.product_id,
+          plan: selectedBundle.id,
           mobile_number: phoneNumber,
           amount: parseFloat(selectedBundle.amount),
         }
