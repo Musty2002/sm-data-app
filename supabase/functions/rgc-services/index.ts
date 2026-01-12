@@ -11,7 +11,7 @@ interface ServiceRequest {
   action: 'get-services' | 'validate' | 'purchase';
   serviceType: 'airtime' | 'data' | 'cable' | 'electricity';
   // For purchases
-  network?: string; // product_id for airtime
+  network?: string | number; // airtime network code / id
   amount?: number;
   mobile_number?: string;
   plan?: number; // product_id for data
@@ -73,7 +73,7 @@ async function validateElectricity(meterNumber: string, discoid: number, meterTy
   return await makeRGCRequest(endpoint);
 }
 
-async function purchaseAirtime(network: string, amount: number, mobileNumber: string) {
+async function purchaseAirtime(network: string | number, amount: number, mobileNumber: string) {
   return await makeRGCRequest('/api/v2/purchase/airtime', 'POST', {
     network,
     amount,
@@ -226,9 +226,15 @@ Deno.serve(async (req) => {
 
       try {
         if (serviceType === 'airtime') {
-          if (!body.network || !body.amount || !body.mobile_number) {
+          if (body.network === undefined || body.amount === undefined || body.mobile_number === undefined) {
             throw new Error('Missing required fields for airtime purchase');
           }
+
+          const networkValue: string | number =
+            typeof body.network === 'string' && /^\d+$/.test(body.network)
+              ? Number(body.network)
+              : body.network;
+
           amount = body.amount;
           description = `Airtime purchase - ${body.mobile_number}`;
 
@@ -241,8 +247,17 @@ Deno.serve(async (req) => {
             });
           }
 
-          result = await purchaseAirtime(body.network, body.amount, body.mobile_number);
-          await recordTransaction(supabase, userId, amount, 'airtime', description, 'completed', undefined, { mobile_number: body.mobile_number, product_id: body.network });
+          result = await purchaseAirtime(networkValue, body.amount, body.mobile_number);
+          await recordTransaction(
+            supabase,
+            userId,
+            amount,
+            'airtime',
+            description,
+            'completed',
+            undefined,
+            { mobile_number: body.mobile_number, network: networkValue }
+          );
 
         } else if (serviceType === 'data') {
           if (!body.plan || !body.mobile_number || !body.amount) {

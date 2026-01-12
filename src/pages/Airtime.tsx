@@ -102,7 +102,7 @@ export default function Airtime() {
         body: {
           action: 'purchase',
           serviceType: 'airtime',
-          network: selectedNetwork.category,
+          network: selectedNetwork.product_id,
           amount: amountNum,
           mobile_number: phoneNumber,
         }
