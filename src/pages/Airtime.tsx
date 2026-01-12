@@ -8,6 +8,12 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+// Import network logos
+import mtnLogo from '@/assets/networks/mtn-logo.png';
+import airtelLogo from '@/assets/networks/airtel-logo.png';
+import gloLogo from '@/assets/networks/glo-logo.png';
+import nineMobileLogo from '@/assets/networks/9mobile-logo.png';
+
 interface AirtimeService {
   id: number;
   product_id: number;
@@ -17,11 +23,18 @@ interface AirtimeService {
   available: boolean;
 }
 
+const networkLogos: Record<string, string> = {
+  'MTN': mtnLogo,
+  'AIRTEL': airtelLogo,
+  'GLO': gloLogo,
+  '9MOBILE': nineMobileLogo,
+};
+
 const networkColors: Record<string, string> = {
-  'MTN': 'bg-yellow-400',
-  'AIRTEL': 'bg-red-500',
-  'GLO': 'bg-green-500',
-  '9MOBILE': 'bg-green-700',
+  'MTN': 'bg-yellow-400/10 border-yellow-400',
+  'AIRTEL': 'bg-red-500/10 border-red-500',
+  'GLO': 'bg-green-500/10 border-green-500',
+  '9MOBILE': 'bg-emerald-600/10 border-emerald-600',
 };
 
 const quickAmounts = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
@@ -155,19 +168,29 @@ export default function Airtime() {
               {/* Network Selection */}
               <div className="mb-6">
                 <Label className="mb-3 block">Select Network</Label>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   {uniqueNetworks.map((network) => (
                     <button
                       key={network.id}
                       onClick={() => setSelectedNetwork(network)}
-                      className={`p-3 rounded-xl border-2 transition-all ${
+                      className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 hover:scale-[1.02] active:scale-[0.98] ${
                         selectedNetwork?.category === network.category
                           ? 'border-primary bg-primary/5'
-                          : 'border-border bg-card'
+                          : networkColors[network.category] || 'border-border bg-card'
                       }`}
                     >
-                      <div className={`w-10 h-10 rounded-full ${networkColors[network.category] || 'bg-gray-400'} mx-auto mb-2`} />
-                      <p className="text-xs font-medium text-center">{network.category}</p>
+                      <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                        {networkLogos[network.category] ? (
+                          <img 
+                            src={networkLogos[network.category]} 
+                            alt={network.category} 
+                            className="w-10 h-10 object-contain rounded-lg"
+                          />
+                        ) : (
+                          <span className="text-lg font-bold">{network.category.charAt(0)}</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">{network.category}</p>
                     </button>
                   ))}
                 </div>
