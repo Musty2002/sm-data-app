@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { TransactionReceipt } from '@/components/TransactionReceipt';
 
 // Import network logos
 import mtnLogo from '@/assets/networks/mtn-logo.png';
@@ -70,6 +71,16 @@ export default function Data() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<{
+    id: string;
+    date: Date;
+    phoneNumber: string;
+    network: string;
+    amount: number;
+    type: 'airtime' | 'data';
+    dataPlan?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchDataBundles();
@@ -123,10 +134,18 @@ export default function Data() {
       if (error) throw error;
 
       if (data.success) {
-        toast({
-          title: 'Success!',
-          description: `${selectedBundle.name} data sent to ${phoneNumber}`,
+        // Set transaction data and show receipt
+        setLastTransaction({
+          id: data.data?.reference || `TXN-${Date.now()}`,
+          date: new Date(),
+          phoneNumber,
+          network: selectedNetwork!.toUpperCase(),
+          amount: parseFloat(selectedBundle.amount),
+          type: 'data',
+          dataPlan: selectedBundle.name,
         });
+        setShowReceipt(true);
+        
         // Reset form
         setPhoneNumber('');
         setSelectedBundle(null);
@@ -402,6 +421,15 @@ export default function Data() {
           )}
         </div>
       </div>
+
+      {/* Transaction Receipt Modal */}
+      {lastTransaction && (
+        <TransactionReceipt
+          open={showReceipt}
+          onClose={() => setShowReceipt(false)}
+          transaction={lastTransaction}
+        />
+      )}
     </MobileLayout>
   );
 }
