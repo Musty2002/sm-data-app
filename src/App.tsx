@@ -27,6 +27,19 @@ import WebContact from "./pages/WebContact";
 import WebPricing from "./pages/WebPricing";
 import NotFound from "./pages/NotFound";
 
+// Admin Pages
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import UsersManagement from "./pages/admin/UsersManagement";
+import TransactionsPage from "./pages/admin/TransactionsPage";
+import NotificationsAdmin from "./pages/admin/NotificationsAdmin";
+import PricingConfig from "./pages/admin/PricingConfig";
+import WalletsPage from "./pages/admin/WalletsPage";
+import ReferralsPage from "./pages/admin/ReferralsPage";
+import SettingsPage from "./pages/admin/SettingsPage";
+import { AdminProvider, useAdmin } from "@/hooks/useAdmin";
+
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -60,6 +73,24 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, isAdmin } = useAdmin();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="animate-pulse text-primary">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    return <Navigate to="/admin/login" replace />;
   }
 
   return <>{children}</>;
@@ -197,15 +228,53 @@ function AppRoutes() {
   );
 }
 
+function AdminRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<AdminLogin />} />
+      <Route
+        path="/"
+        element={
+          <AdminRoute>
+            <AdminLayout />
+          </AdminRoute>
+        }
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<UsersManagement />} />
+        <Route path="transactions" element={<TransactionsPage />} />
+        <Route path="notifications" element={<NotificationsAdmin />} />
+        <Route path="pricing" element={<PricingConfig />} />
+        <Route path="wallets" element={<WalletsPage />} />
+        <Route path="referrals" element={<ReferralsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/admin/login" replace />} />
+    </Routes>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
+        <Routes>
+          {/* Admin routes - completely separate */}
+          <Route path="/admin/*" element={
+            <AdminProvider>
+              <AdminRoutes />
+            </AdminProvider>
+          } />
+          
+          {/* Main app routes */}
+          <Route path="/*" element={
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
+          } />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
