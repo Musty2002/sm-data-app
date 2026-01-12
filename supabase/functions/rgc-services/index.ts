@@ -73,9 +73,9 @@ async function validateElectricity(meterNumber: string, discoid: number, meterTy
   return await makeRGCRequest(endpoint);
 }
 
-async function purchaseAirtime(productId: string, amount: number, mobileNumber: string) {
+async function purchaseAirtime(network: string, amount: number, mobileNumber: string) {
   return await makeRGCRequest('/api/v2/purchase/airtime', 'POST', {
-    product_id: productId,
+    network,
     amount,
     mobile_number: mobileNumber,
   });
