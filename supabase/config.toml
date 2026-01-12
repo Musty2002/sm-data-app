@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.paymentpoint-webhook]
 verify_jwt = false
+
+[functions.rgc-services]
+verify_jwt = false
