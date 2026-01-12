@@ -73,7 +73,7 @@ async function validateElectricity(meterNumber: string, discoid: number, meterTy
   return await makeRGCRequest(endpoint);
 }
 
-async function purchaseAirtime(network: string | number, amount: number, mobileNumber: string) {
+async function purchaseAirtime(network: string, amount: number, mobileNumber: string) {
   return await makeRGCRequest('/api/v2/purchase/airtime', 'POST', {
     network,
     amount,
@@ -230,10 +230,8 @@ Deno.serve(async (req) => {
             throw new Error('Missing required fields for airtime purchase');
           }
 
-          const networkValue: string | number =
-            typeof body.network === 'string' && /^\d+$/.test(body.network)
-              ? Number(body.network)
-              : body.network;
+          // network should be sent as a string per RGC API docs
+          const networkValue = String(body.network);
 
           amount = body.amount;
           description = `Airtime purchase - ${body.mobile_number}`;
