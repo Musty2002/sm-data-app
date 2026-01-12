@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { TransactionReceipt } from '@/components/TransactionReceipt';
 
 // Import network logos
 import mtnLogo from '@/assets/networks/mtn-logo.png';
@@ -48,6 +49,15 @@ export default function Airtime() {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<{
+    id: string;
+    date: Date;
+    phoneNumber: string;
+    network: string;
+    amount: number;
+    type: 'airtime' | 'data';
+  } | null>(null);
 
   useEffect(() => {
     fetchNetworks();
@@ -111,10 +121,17 @@ export default function Airtime() {
       if (error) throw error;
 
       if (data.success) {
-        toast({
-          title: 'Success!',
-          description: `₦${amountNum.toLocaleString()} airtime sent to ${phoneNumber}`,
+        // Set transaction data and show receipt
+        setLastTransaction({
+          id: data.data?.reference || `TXN-${Date.now()}`,
+          date: new Date(),
+          phoneNumber,
+          network: selectedNetwork.category,
+          amount: amountNum,
+          type: 'airtime',
         });
+        setShowReceipt(true);
+        
         // Reset form
         setPhoneNumber('');
         setAmount('');
@@ -261,6 +278,15 @@ export default function Airtime() {
           )}
         </div>
       </div>
+
+      {/* Transaction Receipt Modal */}
+      {lastTransaction && (
+        <TransactionReceipt
+          open={showReceipt}
+          onClose={() => setShowReceipt(false)}
+          transaction={lastTransaction}
+        />
+      )}
     </MobileLayout>
   );
 }
