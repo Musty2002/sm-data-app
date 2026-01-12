@@ -73,9 +73,9 @@ async function validateElectricity(meterNumber: string, discoid: number, meterTy
   return await makeRGCRequest(endpoint);
 }
 
-async function purchaseAirtime(network: string, amount: number, mobileNumber: string) {
+async function purchaseAirtime(productId: string, amount: number, mobileNumber: string) {
   return await makeRGCRequest('/api/v2/purchase/airtime', 'POST', {
-    network,
+    product_id: productId,
     amount,
     mobile_number: mobileNumber,
   });
@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
           }
 
           result = await purchaseAirtime(body.network, body.amount, body.mobile_number);
-          await recordTransaction(supabase, userId, amount, 'airtime', description, 'completed', undefined, { mobile_number: body.mobile_number, network: body.network });
+          await recordTransaction(supabase, userId, amount, 'airtime', description, 'completed', undefined, { mobile_number: body.mobile_number, product_id: body.network });
 
         } else if (serviceType === 'data') {
           if (!body.plan || !body.mobile_number || !body.amount) {
