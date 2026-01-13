@@ -25,6 +25,7 @@ import WebAuth from "./pages/WebAuth";
 import WebAbout from "./pages/WebAbout";
 import WebContact from "./pages/WebContact";
 import WebPricing from "./pages/WebPricing";
+import Cashback from "./pages/Cashback";
 import NotFound from "./pages/NotFound";
 
 // Admin Pages
@@ -220,6 +221,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Notifications />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cashback"
+        element={
+          <ProtectedRoute>
+            <Cashback />
           </ProtectedRoute>
         }
       />

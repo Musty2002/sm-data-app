@@ -245,6 +245,124 @@ async function addCashback(
   }
 }
 
+// Process referral bonus when user buys >= 1GB data
+async function processReferralBonus(supabase: any, userId: string): Promise<void> {
+  try {
+    // Get user's profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, referred_by')
+      .eq('user_id', userId)
+      .single();
+
+    if (!profile || !profile.referred_by) {
+      console.log('User has no referrer');
+      return;
+    }
+
+    // Check if referral bonus already paid
+    const { data: referral } = await supabase
+      .from('referrals')
+      .select('*')
+      .eq('referee_id', profile.id)
+      .eq('referrer_id', profile.referred_by)
+      .single();
+
+    if (!referral) {
+      console.log('No referral record found');
+      return;
+    }
+
+    if (referral.status === 'completed' || referral.status === 'bonus_paid') {
+      console.log('Referral bonus already processed');
+      return;
+    }
+
+    // Get referrer's profile to get user_id
+    const { data: referrerProfile } = await supabase
+      .from('profiles')
+      .select('user_id, full_name')
+      .eq('id', profile.referred_by)
+      .single();
+
+    if (!referrerProfile) {
+      console.log('Referrer profile not found');
+      return;
+    }
+
+    const referrerBonus = referral.referrer_bonus || 200;
+    const refereeBonus = referral.referee_bonus || 100;
+
+    // Credit referrer's wallet
+    const { data: referrerWallet } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', referrerProfile.user_id)
+      .single();
+
+    if (referrerWallet) {
+      await supabase
+        .from('wallets')
+        .update({ 
+          balance: referrerWallet.balance + referrerBonus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', referrerProfile.user_id);
+
+      // Record referrer transaction
+      await supabase.from('transactions').insert({
+        user_id: referrerProfile.user_id,
+        amount: referrerBonus,
+        type: 'credit',
+        category: 'referral_bonus',
+        description: 'Referral bonus - friend bought data',
+        status: 'completed',
+      });
+    }
+
+    // Credit referee's wallet
+    const { data: refereeWallet } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', userId)
+      .single();
+
+    if (refereeWallet) {
+      await supabase
+        .from('wallets')
+        .update({ 
+          balance: refereeWallet.balance + refereeBonus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      // Record referee transaction
+      await supabase.from('transactions').insert({
+        user_id: userId,
+        amount: refereeBonus,
+        type: 'credit',
+        category: 'referral_bonus',
+        description: 'Welcome bonus for first data purchase',
+        status: 'completed',
+      });
+    }
+
+    // Update referral status
+    await supabase
+      .from('referrals')
+      .update({ 
+        status: 'completed',
+        bonus_paid_at: new Date().toISOString()
+      })
+      .eq('id', referral.id);
+
+    console.log(`Referral bonus paid: Referrer ${referrerBonus}, Referee ${refereeBonus}`);
+
+  } catch (error) {
+    console.error('Error processing referral bonus:', error);
+  }
+}
+
 // Extract data size from plan name (e.g., "1GB", "500MB", "2.5GB")
 function extractDataSizeGB(planName: string): number {
   const gbMatch = planName.match(/(\d+\.?\d*)\s*GB/i);
@@ -387,6 +505,11 @@ Deno.serve(async (req) => {
 
           // Calculate and add cashback for data
           const dataCashback = calculateCashback('data', amount, dataSizeGB);
+
+          // Check and process referral bonus if user bought >= 1GB and was referred
+          if (dataSizeGB >= 1) {
+            await processReferralBonus(supabase, userId);
+          }
           if (dataCashback > 0) {
             await addCashback(supabase, userId, dataCashback, 'data', description);
           }
