@@ -212,7 +212,7 @@ export default function Data() {
       setSelectedCategory(null);
       setStep('network');
     } else {
-      navigate(-1);
+      navigate('/dashboard');
     }
   };
 
