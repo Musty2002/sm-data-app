@@ -24,7 +24,10 @@ import {
   Save,
   Database,
   Plus,
-  Trash2
+  Trash2,
+  RefreshCw,
+  Download,
+  Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -35,6 +38,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 interface DataBundle {
   id: string;
@@ -48,6 +52,17 @@ interface DataBundle {
   is_active: boolean;
 }
 
+interface APIDataBundle {
+  id: number;
+  product_id: number;
+  service: string;
+  amount: string;
+  name: string;
+  category: string;
+  available: boolean;
+  provider: 'rgc' | 'isquare';
+}
+
 const networks = [
   { code: 'MTN', name: 'MTN' },
   { code: 'AIRTEL', name: 'Airtel' },
@@ -55,19 +70,14 @@ const networks = [
   { code: '9MOBILE', name: '9Mobile' },
 ];
 
-const dataTypes = [
-  { code: 'SME', name: 'SME' },
-  { code: 'CORPORATE', name: 'Corporate Gifting' },
-  { code: 'GIFTING', name: 'Gifting' },
-  { code: 'DIRECT', name: 'Direct' },
-];
-
 export default function DataPricingPage() {
   const [bundles, setBundles] = useState<DataBundle[]>([]);
+  const [apiBundles, setApiBundles] = useState<APIDataBundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState('MTN');
-  const [selectedDataType, setSelectedDataType] = useState('SME');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [editedItems, setEditedItems] = useState<Record<string, Partial<DataBundle>>>({});
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newBundle, setNewBundle] = useState({
@@ -77,20 +87,81 @@ export default function DataPricingPage() {
     api_price: 0,
     app_price: 0,
   });
+  const [selectedForImport, setSelectedForImport] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<'database' | 'api'>('api');
 
   useEffect(() => {
-    fetchBundles();
-  }, [selectedNetwork, selectedDataType]);
+    fetchFromAPI();
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === 'database') {
+      fetchBundles();
+    }
+  }, [selectedNetwork, selectedCategory, viewMode]);
+
+  // Fetch bundles from both RGC and iSquare APIs
+  const fetchFromAPI = async () => {
+    setSyncing(true);
+    try {
+      const [rgcResponse, isquareResponse] = await Promise.all([
+        supabase.functions.invoke('rgc-services', {
+          body: { action: 'get-services', serviceType: 'data' }
+        }),
+        supabase.functions.invoke('isquare-services', {
+          body: { action: 'get-services', serviceType: 'data' }
+        })
+      ]);
+
+      let bundles: APIDataBundle[] = [];
+
+      if (rgcResponse.data?.success && rgcResponse.data?.data) {
+        const rgcBundles = rgcResponse.data.data
+          .filter((b: APIDataBundle) => b.available)
+          .map((b: APIDataBundle) => ({ ...b, provider: 'rgc' as const }));
+        bundles = [...bundles, ...rgcBundles];
+      }
+
+      if (isquareResponse.data?.success && isquareResponse.data?.data) {
+        const isquareBundles = isquareResponse.data.data
+          .filter((b: APIDataBundle) => b.available)
+          .map((b: APIDataBundle) => ({ ...b, provider: 'isquare' as const }));
+        bundles = [...bundles, ...isquareBundles];
+      }
+
+      setApiBundles(bundles);
+      
+      // Auto-select first category if available
+      const networkBundles = bundles.filter(b => getNetworkGroup(b.category) === selectedNetwork);
+      const categories = [...new Set(networkBundles.map(b => b.category))];
+      if (categories.length > 0 && !selectedCategory) {
+        setSelectedCategory(categories[0]);
+      }
+
+      toast.success(`Loaded ${bundles.length} bundles from API`);
+    } catch (error: any) {
+      console.error('Error fetching from API:', error);
+      toast.error('Failed to fetch from API');
+    } finally {
+      setSyncing(false);
+      setLoading(false);
+    }
+  };
 
   const fetchBundles = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('data_bundles')
         .select('*')
         .eq('network_code', selectedNetwork)
-        .eq('data_type', selectedDataType)
         .order('api_price', { ascending: true });
+
+      if (selectedCategory) {
+        query = query.eq('data_type', selectedCategory);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setBundles(data || []);
@@ -101,6 +172,15 @@ export default function DataPricingPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getNetworkGroup = (category: string): string => {
+    const upper = category.toUpperCase();
+    if (upper.includes('MTN')) return 'MTN';
+    if (upper.includes('AIRTEL')) return 'AIRTEL';
+    if (upper.includes('GLO')) return 'GLO';
+    if (upper.includes('9MOBILE') || upper.includes('ETISALAT')) return '9MOBILE';
+    return category;
   };
 
   const handleChange = (id: string, field: keyof DataBundle, value: any) => {
@@ -148,6 +228,121 @@ export default function DataPricingPage() {
     }
   };
 
+  const importSelectedBundles = async () => {
+    if (selectedForImport.size === 0) {
+      toast.error('Select bundles to import');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const bundlesToImport = apiBundles.filter(b => selectedForImport.has(b.id));
+      
+      for (const bundle of bundlesToImport) {
+        const networkCode = getNetworkGroup(bundle.category);
+        const apiPrice = parseFloat(bundle.amount);
+        
+        // Check if already exists
+        const { data: existing } = await supabase
+          .from('data_bundles')
+          .select('id')
+          .eq('plan_code', bundle.id.toString())
+          .eq('data_type', bundle.category)
+          .single();
+
+        if (existing) {
+          // Update existing
+          await supabase
+            .from('data_bundles')
+            .update({
+              api_price: apiPrice,
+              plan_name: bundle.name,
+            })
+            .eq('id', existing.id);
+        } else {
+          // Insert new
+          await supabase
+            .from('data_bundles')
+            .insert({
+              network_code: networkCode,
+              data_type: bundle.category,
+              plan_code: bundle.id.toString(),
+              plan_name: bundle.name,
+              api_price: apiPrice,
+              app_price: apiPrice, // Default to API price, admin can adjust
+              is_active: true,
+            });
+        }
+      }
+
+      toast.success(`Imported ${bundlesToImport.length} bundles`);
+      setSelectedForImport(new Set());
+      fetchBundles();
+    } catch (error: any) {
+      console.error('Error importing:', error);
+      toast.error('Failed to import bundles');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const importAllVisible = async () => {
+    const visibleBundles = filteredApiBundles;
+    if (visibleBundles.length === 0) {
+      toast.error('No bundles to import');
+      return;
+    }
+
+    if (!confirm(`Import all ${visibleBundles.length} bundles from ${selectedCategory}?`)) return;
+
+    setSaving(true);
+    try {
+      for (const bundle of visibleBundles) {
+        const networkCode = getNetworkGroup(bundle.category);
+        const apiPrice = parseFloat(bundle.amount);
+        
+        // Check if already exists
+        const { data: existing } = await supabase
+          .from('data_bundles')
+          .select('id')
+          .eq('plan_code', bundle.id.toString())
+          .eq('data_type', bundle.category)
+          .single();
+
+        if (existing) {
+          await supabase
+            .from('data_bundles')
+            .update({
+              api_price: apiPrice,
+              plan_name: bundle.name,
+            })
+            .eq('id', existing.id);
+        } else {
+          await supabase
+            .from('data_bundles')
+            .insert({
+              network_code: networkCode,
+              data_type: bundle.category,
+              plan_code: bundle.id.toString(),
+              plan_name: bundle.name,
+              api_price: apiPrice,
+              app_price: apiPrice,
+              is_active: true,
+            });
+        }
+      }
+
+      toast.success(`Imported ${visibleBundles.length} bundles`);
+      setViewMode('database');
+      fetchBundles();
+    } catch (error: any) {
+      console.error('Error importing:', error);
+      toast.error('Failed to import bundles');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const addNewBundle = async () => {
     if (!newBundle.plan_code || !newBundle.plan_name) {
       toast.error('Please fill in plan code and name');
@@ -159,7 +354,7 @@ export default function DataPricingPage() {
         .from('data_bundles')
         .insert({
           network_code: selectedNetwork,
-          data_type: selectedDataType,
+          data_type: selectedCategory || 'SME',
           ...newBundle
         });
 
@@ -195,25 +390,85 @@ export default function DataPricingPage() {
 
   const hasChanges = Object.keys(editedItems).length > 0;
 
+  // Get categories from API bundles for selected network
+  const networkApiBundles = apiBundles.filter(b => getNetworkGroup(b.category) === selectedNetwork);
+  const apiCategories = [...new Set(networkApiBundles.map(b => b.category))];
+
+  // Filter API bundles by selected category
+  const filteredApiBundles = selectedCategory 
+    ? apiBundles.filter(b => b.category === selectedCategory)
+        .sort((a, b) => parseFloat(a.amount) - parseFloat(b.amount))
+    : [];
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+    }).format(price);
+  };
+
+  const toggleSelection = (id: number) => {
+    setSelectedForImport(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    const allIds = new Set(filteredApiBundles.map(b => b.id));
+    setSelectedForImport(allIds);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Data Pricing</h1>
-          <p className="text-gray-500">Set prices for data bundles</p>
+          <p className="text-gray-500">Manage data bundle prices from API providers</p>
         </div>
-        <Button onClick={saveChanges} disabled={saving || !hasChanges}>
-          {saving ? (
-            <>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchFromAPI} disabled={syncing}>
+            {syncing ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4 mr-2" />
+            ) : (
+              <RefreshCw className="w-4 h-4 mr-2" />
+            )}
+            Refresh API
+          </Button>
+          {viewMode === 'database' && (
+            <Button onClick={saveChanges} disabled={saving || !hasChanges}>
+              {saving ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
               Save Changes
-            </>
+            </Button>
           )}
+        </div>
+      </div>
+
+      {/* View Mode Toggle */}
+      <div className="flex gap-2">
+        <Button 
+          variant={viewMode === 'api' ? 'default' : 'outline'}
+          onClick={() => setViewMode('api')}
+        >
+          <Database className="w-4 h-4 mr-2" />
+          API Bundles ({apiBundles.length})
+        </Button>
+        <Button 
+          variant={viewMode === 'database' ? 'default' : 'outline'}
+          onClick={() => setViewMode('database')}
+        >
+          <Database className="w-4 h-4 mr-2" />
+          Saved Bundles ({bundles.length})
         </Button>
       </div>
 
@@ -223,7 +478,10 @@ export default function DataPricingPage() {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <Label className="mb-2 block">Network</Label>
-              <Select value={selectedNetwork} onValueChange={setSelectedNetwork}>
+              <Select value={selectedNetwork} onValueChange={(v) => {
+                setSelectedNetwork(v);
+                setSelectedCategory('');
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -235,190 +493,306 @@ export default function DataPricingPage() {
               </Select>
             </div>
             <div className="flex-1">
-              <Label className="mb-2 block">Data Type</Label>
-              <Select value={selectedDataType} onValueChange={setSelectedDataType}>
+              <Label className="mb-2 block">Category (from API)</Label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {dataTypes.map(t => (
-                    <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>
+                  {apiCategories.map(cat => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat} ({apiBundles.filter(b => b.category === cat).length})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end">
-              <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Bundle
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Data Bundle</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Plan Code</Label>
-                      <Input
-                        value={newBundle.plan_code}
-                        onChange={(e) => setNewBundle(prev => ({ ...prev, plan_code: e.target.value }))}
-                        placeholder="e.g., MTN500MB"
-                      />
-                    </div>
-                    <div>
-                      <Label>Plan Name</Label>
-                      <Input
-                        value={newBundle.plan_name}
-                        onChange={(e) => setNewBundle(prev => ({ ...prev, plan_name: e.target.value }))}
-                        placeholder="e.g., 500MB"
-                      />
-                    </div>
-                    <div>
-                      <Label>Validity</Label>
-                      <Input
-                        value={newBundle.validity}
-                        onChange={(e) => setNewBundle(prev => ({ ...prev, validity: e.target.value }))}
-                        placeholder="e.g., 30 days"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+            {viewMode === 'api' && (
+              <div className="flex items-end gap-2">
+                <Button onClick={selectAll} variant="outline" disabled={filteredApiBundles.length === 0}>
+                  Select All
+                </Button>
+                <Button onClick={importSelectedBundles} disabled={selectedForImport.size === 0 || saving}>
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                  )}
+                  Import ({selectedForImport.size})
+                </Button>
+              </div>
+            )}
+            {viewMode === 'database' && (
+              <div className="flex items-end">
+                <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Bundle
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Data Bundle</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
                       <div>
-                        <Label>API Price (₦)</Label>
+                        <Label>Plan Code</Label>
                         <Input
-                          type="number"
-                          value={newBundle.api_price}
-                          onChange={(e) => setNewBundle(prev => ({ ...prev, api_price: parseFloat(e.target.value) || 0 }))}
+                          value={newBundle.plan_code}
+                          onChange={(e) => setNewBundle(prev => ({ ...prev, plan_code: e.target.value }))}
+                          placeholder="e.g., MTN500MB"
                         />
                       </div>
                       <div>
-                        <Label>App Price (₦)</Label>
+                        <Label>Plan Name</Label>
                         <Input
-                          type="number"
-                          value={newBundle.app_price}
-                          onChange={(e) => setNewBundle(prev => ({ ...prev, app_price: parseFloat(e.target.value) || 0 }))}
+                          value={newBundle.plan_name}
+                          onChange={(e) => setNewBundle(prev => ({ ...prev, plan_name: e.target.value }))}
+                          placeholder="e.g., 500MB"
                         />
                       </div>
+                      <div>
+                        <Label>Validity</Label>
+                        <Input
+                          value={newBundle.validity}
+                          onChange={(e) => setNewBundle(prev => ({ ...prev, validity: e.target.value }))}
+                          placeholder="e.g., 30 days"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>API Price (₦)</Label>
+                          <Input
+                            type="number"
+                            value={newBundle.api_price}
+                            onChange={(e) => setNewBundle(prev => ({ ...prev, api_price: parseFloat(e.target.value) || 0 }))}
+                          />
+                        </div>
+                        <div>
+                          <Label>App Price (₦)</Label>
+                          <Input
+                            type="number"
+                            value={newBundle.app_price}
+                            onChange={(e) => setNewBundle(prev => ({ ...prev, app_price: parseFloat(e.target.value) || 0 }))}
+                          />
+                        </div>
+                      </div>
+                      <Button onClick={addNewBundle} className="w-full">Add Bundle</Button>
                     </div>
-                    <Button onClick={addNewBundle} className="w-full">Add Bundle</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Bundles Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="w-5 h-5" />
-            {selectedNetwork} - {dataTypes.find(t => t.code === selectedDataType)?.name} Bundles
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      {/* API Bundles View */}
+      {viewMode === 'api' && (
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Live API Prices - {selectedCategory || 'Select a category'}
+              </CardTitle>
+              {filteredApiBundles.length > 0 && (
+                <Button onClick={importAllVisible} disabled={saving} size="sm">
+                  Import All ({filteredApiBundles.length})
+                </Button>
+              )}
             </div>
-          ) : bundles.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No bundles found. Click "Add Bundle" to create one.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Plan Code</TableHead>
-                    <TableHead>Plan Name</TableHead>
-                    <TableHead>Validity</TableHead>
-                    <TableHead>API Price (₦)</TableHead>
-                    <TableHead>App Price (₦)</TableHead>
-                    <TableHead>Profit (₦)</TableHead>
-                    <TableHead>Active</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bundles.map((bundle) => {
-                    const apiPrice = Number(getDisplayValue(bundle, 'api_price'));
-                    const appPrice = Number(getDisplayValue(bundle, 'app_price'));
-                    const profit = appPrice - apiPrice;
-
-                    return (
-                      <TableRow key={bundle.id} className={editedItems[bundle.id] ? 'bg-yellow-50' : ''}>
-                        <TableCell className="font-mono text-sm">{bundle.plan_code}</TableCell>
-                        <TableCell className="font-medium">{bundle.plan_name}</TableCell>
-                        <TableCell>{bundle.validity || '-'}</TableCell>
+          </CardHeader>
+          <CardContent>
+            {loading || syncing ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : !selectedCategory ? (
+              <div className="text-center py-8 text-gray-500">
+                Select a network and category to view bundles
+              </div>
+            ) : filteredApiBundles.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No bundles found for this category
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedForImport.size === filteredApiBundles.length && filteredApiBundles.length > 0}
+                          onChange={() => {
+                            if (selectedForImport.size === filteredApiBundles.length) {
+                              setSelectedForImport(new Set());
+                            } else {
+                              selectAll();
+                            }
+                          }}
+                          className="rounded"
+                        />
+                      </TableHead>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Plan Name</TableHead>
+                      <TableHead>API Price</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredApiBundles.map((bundle) => (
+                      <TableRow key={`${bundle.provider}-${bundle.id}`} className={selectedForImport.has(bundle.id) ? 'bg-primary/5' : ''}>
                         <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="w-24"
-                            value={getDisplayValue(bundle, 'api_price') as number}
-                            onChange={(e) => handleChange(bundle.id, 'api_price', parseFloat(e.target.value) || 0)}
+                          <input
+                            type="checkbox"
+                            checked={selectedForImport.has(bundle.id)}
+                            onChange={() => toggleSelection(bundle.id)}
+                            className="rounded"
                           />
                         </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="w-24"
-                            value={getDisplayValue(bundle, 'app_price') as number}
-                            onChange={(e) => handleChange(bundle.id, 'app_price', parseFloat(e.target.value) || 0)}
-                          />
-                        </TableCell>
-                        <TableCell className={profit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                          {profit >= 0 ? '+' : ''}{profit.toFixed(2)}
+                        <TableCell className="font-mono text-sm">{bundle.id}</TableCell>
+                        <TableCell className="font-medium">{bundle.name}</TableCell>
+                        <TableCell className="font-semibold text-primary">
+                          {formatPrice(parseFloat(bundle.amount))}
                         </TableCell>
                         <TableCell>
-                          <Switch
-                            checked={getDisplayValue(bundle, 'is_active') as boolean}
-                            onCheckedChange={(checked) => handleChange(bundle.id, 'is_active', checked)}
-                          />
+                          <Badge variant={bundle.provider === 'isquare' ? 'default' : 'secondary'}>
+                            {bundle.provider === 'isquare' ? 'iSquare' : 'RGC'}
+                          </Badge>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => deleteBundle(bundle.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {bundle.available ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              <Check className="w-3 h-3 mr-1" />
+                              Available
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                              Unavailable
+                            </Badge>
+                          )}
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-          {hasChanges && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-              You have unsaved changes. Click "Save Changes" to apply.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Database Bundles View */}
+      {viewMode === 'database' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="w-5 h-5" />
+              Saved Bundles - {selectedNetwork}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : bundles.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No bundles saved yet.</p>
+                <p className="text-sm mt-2">Switch to "API Bundles" view and import bundles first.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Plan Code</TableHead>
+                      <TableHead>Plan Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>API Price (₦)</TableHead>
+                      <TableHead>App Price (₦)</TableHead>
+                      <TableHead>Profit (₦)</TableHead>
+                      <TableHead>Active</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bundles.map((bundle) => {
+                      const apiPrice = Number(getDisplayValue(bundle, 'api_price'));
+                      const appPrice = Number(getDisplayValue(bundle, 'app_price'));
+                      const profit = appPrice - apiPrice;
+
+                      return (
+                        <TableRow key={bundle.id} className={editedItems[bundle.id] ? 'bg-yellow-50' : ''}>
+                          <TableCell className="font-mono text-sm">{bundle.plan_code}</TableCell>
+                          <TableCell className="font-medium">{bundle.plan_name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{bundle.data_type}</Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatPrice(bundle.api_price)}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              step="1"
+                              min="0"
+                              className="w-28"
+                              value={getDisplayValue(bundle, 'app_price') as number}
+                              onChange={(e) => handleChange(bundle.id, 'app_price', parseFloat(e.target.value) || 0)}
+                            />
+                          </TableCell>
+                          <TableCell className={profit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                            {profit >= 0 ? '+' : ''}{formatPrice(profit)}
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={getDisplayValue(bundle, 'is_active') as boolean}
+                              onCheckedChange={(checked) => handleChange(bundle.id, 'is_active', checked)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => deleteBundle(bundle.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {hasChanges && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                You have unsaved changes. Click "Save Changes" to apply.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Help Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Pricing Guide</CardTitle>
+          <CardTitle>How It Works</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-gray-600 space-y-2">
-          <p><strong>API Price:</strong> The cost you pay to the provider for this data bundle</p>
-          <p><strong>App Price:</strong> The price your users will pay in the app</p>
-          <p><strong>Profit:</strong> Difference between App Price and API Price (your margin)</p>
-          <p><strong>Active:</strong> Toggle to show/hide bundles from users</p>
+          <p><strong>1. API Bundles:</strong> View live prices from RGC and iSquare providers</p>
+          <p><strong>2. Import:</strong> Select bundles and click "Import" to save them to your database</p>
+          <p><strong>3. Saved Bundles:</strong> Edit your selling prices (App Price) and toggle active status</p>
+          <p><strong>4. Profit:</strong> Difference between your App Price and API Price</p>
+          <p><strong>5. Refresh:</strong> Click "Refresh API" to get latest prices from providers</p>
         </CardContent>
       </Card>
     </div>
