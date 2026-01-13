@@ -10,6 +10,7 @@ import {
   Wallet, 
   Settings, 
   Gift,
+  Image,
   LogOut,
   Menu,
   X,
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/admin/pricing', icon: DollarSign, label: 'Pricing' },
   { to: '/admin/wallets', icon: Wallet, label: 'Wallets' },
   { to: '/admin/referrals', icon: Gift, label: 'Referrals' },
+  { to: '/admin/promo-banners', icon: Image, label: 'Promo Banners' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
 

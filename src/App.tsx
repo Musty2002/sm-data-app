@@ -41,6 +41,7 @@ import PricingConfig from "./pages/admin/PricingConfig";
 import WalletsPage from "./pages/admin/WalletsPage";
 import ReferralsPage from "./pages/admin/ReferralsPage";
 import SettingsPage from "./pages/admin/SettingsPage";
+import PromoBannersPage from "./pages/admin/PromoBannersPage";
 import { AdminProvider, useAdmin } from "@/hooks/useAdmin";
 
 const queryClient = new QueryClient();
@@ -267,6 +268,7 @@ function AdminRoutes() {
         <Route path="pricing" element={<PricingConfig />} />
         <Route path="wallets" element={<WalletsPage />} />
         <Route path="referrals" element={<ReferralsPage />} />
+        <Route path="promo-banners" element={<PromoBannersPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/admin/login" replace />} />

@@ -2,6 +2,7 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { AccountCard } from '@/components/dashboard/AccountCard';
 import { ServicesGrid } from '@/components/dashboard/ServicesGrid';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
+import { PromoPopup } from '@/components/PromoPopup';
 import { Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import logo from '@/assets/sm-data-logo.jpeg';
@@ -11,6 +12,7 @@ export default function Dashboard() {
 
   return (
     <MobileLayout>
+      <PromoPopup />
       <div className="safe-area-top">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4">
