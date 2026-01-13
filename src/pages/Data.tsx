@@ -90,7 +90,18 @@ export default function Data() {
 
   const fetchDataBundles = async () => {
     try {
-      // Fetch from both RGC and iSquare
+      // First, fetch saved bundles with admin-set prices from database
+      const { data: savedBundles } = await supabase
+        .from('data_bundles')
+        .select('*')
+        .eq('is_active', true);
+
+      // Create a map of saved bundles by plan_code for quick lookup
+      const savedBundlesMap = new Map(
+        (savedBundles || []).map(b => [b.plan_code, b])
+      );
+
+      // Fetch from both RGC and iSquare APIs
       const [rgcResponse, isquareResponse] = await Promise.all([
         supabase.functions.invoke('rgc-services', {
           body: { action: 'get-services', serviceType: 'data' }
@@ -102,19 +113,35 @@ export default function Data() {
 
       let bundles: DataService[] = [];
 
-      // Process RGC bundles
+      // Process RGC bundles - use app_price from DB if available
       if (rgcResponse.data?.success && rgcResponse.data?.data) {
         const rgcBundles = rgcResponse.data.data
           .filter((b: DataService) => b.available)
-          .map((b: DataService) => ({ ...b, provider: 'rgc' as const }));
+          .map((b: DataService) => {
+            const saved = savedBundlesMap.get(String(b.id));
+            return {
+              ...b,
+              provider: 'rgc' as const,
+              // Use admin-set app_price if available, otherwise use API price
+              amount: saved ? String(saved.app_price) : b.amount
+            };
+          });
         bundles = [...bundles, ...rgcBundles];
       }
 
-      // Add iSquare bundles (MTN Corporate, MTN Direct Coupon, MTN Awoof, 9Mobile SME, GLO Awoof)
+      // Add iSquare bundles - use app_price from DB if available
       if (isquareResponse.data?.success && isquareResponse.data?.data) {
         const isquareBundles = isquareResponse.data.data
           .filter((b: DataService) => b.available)
-          .map((b: DataService) => ({ ...b, provider: 'isquare' as const }));
+          .map((b: DataService) => {
+            const saved = savedBundlesMap.get(String(b.id));
+            return {
+              ...b,
+              provider: 'isquare' as const,
+              // Use admin-set app_price if available, otherwise use API price
+              amount: saved ? String(saved.app_price) : b.amount
+            };
+          });
         bundles = [...bundles, ...isquareBundles];
       }
 
