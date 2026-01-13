@@ -183,27 +183,32 @@ export default function Airtime() {
         }
       });
 
-      if (error) throw error;
-
-      if (data.success) {
-        // Set transaction data and show receipt
-        setLastTransaction({
-          id: data.data?.reference || `TXN-${Date.now()}`,
-          date: new Date(),
-          phoneNumber,
-          network: selectedNetwork.category,
-          amount: amountNum,
-          type: 'airtime',
-        });
-        setShowReceipt(true);
-        
-        // Reset form
-        setPhoneNumber('');
-        setAmount('');
-        setSelectedNetwork(null);
-      } else {
-        throw new Error(data.message || 'Purchase failed');
+      // Check for function error or unsuccessful response
+      if (error) {
+        // Try to parse error context for message
+        const errorMessage = error.message || 'Purchase failed';
+        throw new Error(errorMessage);
       }
+
+      if (!data?.success) {
+        throw new Error(data?.message || 'Purchase failed');
+      }
+
+      // Set transaction data and show receipt
+      setLastTransaction({
+        id: data.data?.reference || `TXN-${Date.now()}`,
+        date: new Date(),
+        phoneNumber,
+        network: selectedNetwork.category,
+        amount: amountNum,
+        type: 'airtime',
+      });
+      setShowReceipt(true);
+      
+      // Reset form
+      setPhoneNumber('');
+      setAmount('');
+      setSelectedNetwork(null);
     } catch (error: any) {
       console.error('Purchase error:', error);
       
