@@ -309,30 +309,49 @@ function extractDataSizeGB(planName: string): number {
   return 0;
 }
 
+// Services to include from iSquare (cheaper rates)
+const ISQUARE_SERVICE_IDS = [
+  7,  // MTN CORPORATE DATA
+  12, // MTN DIRECT COUPON
+  17, // MTN SMART DATA (AWOOF)
+  6,  // 9MOBILE SME DATA
+  16, // GLO AWOOF
+];
+
 // Transform iSquare data format to match RGC format for compatibility
 function transformISquareDataServices(data: any[]) {
   const transformed: any[] = [];
   
   for (const service of data) {
-    // Only include MTN services (SME and Corporate)
-    const serviceName = service.name?.toUpperCase() || '';
-    if (!serviceName.includes('MTN')) {
+    // Only include services we want from iSquare
+    if (!ISQUARE_SERVICE_IDS.includes(service.id)) {
       continue;
     }
+    
+    const serviceName = service.name?.toUpperCase() || '';
     
     for (const plan of service.plans || []) {
       if (!plan.is_active) continue;
       
-      // Determine category name
-      let category = 'MTN SME';
-      if (serviceName.includes('CORPORATE')) {
-        category = 'MTN CORPORATE (iSquare)';
-      } else if (serviceName.includes('SME')) {
-        category = 'MTN SME (iSquare)';
-      } else if (serviceName.includes('GIFTING')) {
-        category = 'MTN GIFTING (iSquare)';
-      } else {
-        category = `MTN ${serviceName} (iSquare)`;
+      // Determine category name based on service
+      let category = serviceName;
+      let network = 'MTN';
+      
+      if (service.id === 7) {
+        category = 'MTN CORPORATE';
+        network = 'MTN';
+      } else if (service.id === 12) {
+        category = 'MTN DIRECT COUPON';
+        network = 'MTN';
+      } else if (service.id === 17) {
+        category = 'MTN AWOOF DATA';
+        network = 'MTN';
+      } else if (service.id === 6) {
+        category = '9MOBILE SME';
+        network = '9MOBILE';
+      } else if (service.id === 16) {
+        category = 'GLO AWOOF';
+        network = 'GLO';
       }
       
       transformed.push({
@@ -343,7 +362,8 @@ function transformISquareDataServices(data: any[]) {
         name: plan.name,
         category: category,
         available: plan.is_active,
-        provider: 'isquare', // Mark provider for routing
+        provider: 'isquare',
+        network: network,
       });
     }
   }

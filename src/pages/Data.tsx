@@ -43,10 +43,11 @@ const networkColors: Record<string, string> = {
 };
 
 const getNetworkGroup = (category: string): string => {
-  if (category.includes('MTN')) return 'MTN';
-  if (category.includes('AIRTEL')) return 'Airtel';
-  if (category.includes('GLO')) return 'Glo';
-  if (category.includes('9mobile')) return '9mobile';
+  const upper = category.toUpperCase();
+  if (upper.includes('MTN')) return 'MTN';
+  if (upper.includes('AIRTEL')) return 'Airtel';
+  if (upper.includes('GLO')) return 'Glo';
+  if (upper.includes('9MOBILE') || upper.includes('ETISALAT')) return '9mobile';
   return category;
 };
 
@@ -89,19 +90,32 @@ export default function Data() {
 
   const fetchDataBundles = async () => {
     try {
-      // Fetch all data bundles from RGC
-      const rgcResponse = await supabase.functions.invoke('rgc-services', {
-        body: { action: 'get-services', serviceType: 'data' }
-      });
+      // Fetch from both RGC and iSquare
+      const [rgcResponse, isquareResponse] = await Promise.all([
+        supabase.functions.invoke('rgc-services', {
+          body: { action: 'get-services', serviceType: 'data' }
+        }),
+        supabase.functions.invoke('isquare-services', {
+          body: { action: 'get-services', serviceType: 'data' }
+        })
+      ]);
 
       let bundles: DataService[] = [];
 
-      // Process all RGC bundles (including MTN)
+      // Process RGC bundles
       if (rgcResponse.data?.success && rgcResponse.data?.data) {
         const rgcBundles = rgcResponse.data.data
           .filter((b: DataService) => b.available)
           .map((b: DataService) => ({ ...b, provider: 'rgc' as const }));
         bundles = [...bundles, ...rgcBundles];
+      }
+
+      // Add iSquare bundles (MTN Corporate, MTN Direct Coupon, MTN Awoof, 9Mobile SME, GLO Awoof)
+      if (isquareResponse.data?.success && isquareResponse.data?.data) {
+        const isquareBundles = isquareResponse.data.data
+          .filter((b: DataService) => b.available)
+          .map((b: DataService) => ({ ...b, provider: 'isquare' as const }));
+        bundles = [...bundles, ...isquareBundles];
       }
 
       setAllBundles(bundles);
