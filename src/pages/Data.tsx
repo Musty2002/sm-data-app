@@ -126,6 +126,7 @@ export default function Data() {
           action: 'purchase',
           serviceType: 'data',
           plan: selectedBundle.id,
+          plan_name: selectedBundle.name, // Send plan name for cashback calculation
           mobile_number: phoneNumber,
           amount: parseFloat(selectedBundle.amount),
         }

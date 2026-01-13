@@ -15,6 +15,7 @@ interface ServiceRequest {
   amount?: number;
   mobile_number?: string;
   plan?: number; // product_id for data
+  plan_name?: string; // plan name for data cashback calculation
   plan_id?: number; // product_id for cable
   smart_card_number?: string;
   discoid?: number; // product_id for electricity
@@ -161,6 +162,104 @@ async function deductFromWallet(supabase: any, userId: string, amount: number): 
   return true;
 }
 
+// Calculate cashback based on purchase type
+function calculateCashback(category: string, amount: number, dataSizeGB?: number): number {
+  if (category === 'data' && dataSizeGB) {
+    // 5 naira for every 1GB of data
+    return Math.floor(dataSizeGB) * 5;
+  } else if (category === 'airtime') {
+    // 2 naira for every 100 naira of airtime
+    return Math.floor(amount / 100) * 2;
+  }
+  return 0;
+}
+
+// Add cashback to user's cashback wallet
+async function addCashback(
+  supabase: any,
+  userId: string,
+  amount: number,
+  category: string,
+  transactionDescription: string
+): Promise<boolean> {
+  if (amount <= 0) return true;
+
+  try {
+    // Get or create cashback wallet
+    let { data: cashbackWallet, error: fetchError } = await supabase
+      .from('cashback_wallets')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !cashbackWallet) {
+      // Create cashback wallet if it doesn't exist
+      const { data: newWallet, error: createError } = await supabase
+        .from('cashback_wallets')
+        .insert({ user_id: userId, balance: 0, total_earned: 0, total_withdrawn: 0 })
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error('Error creating cashback wallet:', createError);
+        return false;
+      }
+      cashbackWallet = newWallet;
+    }
+
+    // Update cashback wallet balance
+    const { error: updateError } = await supabase
+      .from('cashback_wallets')
+      .update({
+        balance: cashbackWallet.balance + amount,
+        total_earned: cashbackWallet.total_earned + amount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('Error updating cashback wallet:', updateError);
+      return false;
+    }
+
+    // Record cashback transaction
+    const { error: txError } = await supabase
+      .from('cashback_transactions')
+      .insert({
+        user_id: userId,
+        amount,
+        type: 'earned',
+        category,
+        description: `Cashback from ${transactionDescription}`
+      });
+
+    if (txError) {
+      console.error('Error recording cashback transaction:', txError);
+    }
+
+    console.log(`Added ${amount} naira cashback for ${category} purchase`);
+    return true;
+  } catch (error) {
+    console.error('Error adding cashback:', error);
+    return false;
+  }
+}
+
+// Extract data size from plan name (e.g., "1GB", "500MB", "2.5GB")
+function extractDataSizeGB(planName: string): number {
+  const gbMatch = planName.match(/(\d+\.?\d*)\s*GB/i);
+  if (gbMatch) {
+    return parseFloat(gbMatch[1]);
+  }
+  
+  const mbMatch = planName.match(/(\d+\.?\d*)\s*MB/i);
+  if (mbMatch) {
+    return parseFloat(mbMatch[1]) / 1024;
+  }
+  
+  return 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -257,6 +356,12 @@ Deno.serve(async (req) => {
             { mobile_number: body.mobile_number, network: networkValue }
           );
 
+          // Calculate and add cashback for airtime
+          const airtimeCashback = calculateCashback('airtime', amount);
+          if (airtimeCashback > 0) {
+            await addCashback(supabase, userId, airtimeCashback, 'airtime', description);
+          }
+
         } else if (serviceType === 'data') {
           if (!body.plan || !body.mobile_number || !body.amount) {
             throw new Error('Missing required fields for data purchase');
@@ -273,7 +378,18 @@ Deno.serve(async (req) => {
           }
 
           result = await purchaseData(body.plan, body.mobile_number);
-          await recordTransaction(supabase, userId, amount, 'data', description, 'completed', undefined, { mobile_number: body.mobile_number, plan: body.plan });
+          
+          // Get the plan name from metadata to calculate data size
+          const planName = body.plan_name || '';
+          const dataSizeGB = extractDataSizeGB(planName);
+          
+          await recordTransaction(supabase, userId, amount, 'data', description, 'completed', undefined, { mobile_number: body.mobile_number, plan: body.plan, plan_name: planName });
+
+          // Calculate and add cashback for data
+          const dataCashback = calculateCashback('data', amount, dataSizeGB);
+          if (dataCashback > 0) {
+            await addCashback(supabase, userId, dataCashback, 'data', description);
+          }
 
         } else if (serviceType === 'cable') {
           if (!body.plan_id || !body.smart_card_number || !body.amount) {
