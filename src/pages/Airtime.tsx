@@ -69,6 +69,7 @@ export default function Airtime() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showTopUpPrompt, setShowTopUpPrompt] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<{
     id: string;
     date: Date;
@@ -216,14 +217,16 @@ export default function Airtime() {
       let errorTitle = 'Purchase Failed';
       let errorDescription = error.message || 'Unable to complete purchase. Please try again.';
       
-      if (error.message?.toLowerCase().includes('insufficient balance')) {
-        if (error.message?.toLowerCase().includes('provider') || error.message?.toLowerCase().includes('wallet')) {
-          errorTitle = 'Provider Unavailable';
-          errorDescription = 'The service provider is temporarily unavailable. Please try a different network or contact support.';
-        } else {
-          errorTitle = 'Insufficient Balance';
-          errorDescription = 'You don\'t have enough funds in your wallet. Please top up and try again.';
-        }
+      const isInsufficientBalance = error.message?.toLowerCase().includes('insufficient balance') && 
+        !error.message?.toLowerCase().includes('provider');
+      
+      if (isInsufficientBalance) {
+        errorTitle = 'Insufficient Balance';
+        errorDescription = 'You don\'t have enough funds in your wallet.';
+        setShowTopUpPrompt(true);
+      } else if (error.message?.toLowerCase().includes('provider') || error.message?.toLowerCase().includes('service provider')) {
+        errorTitle = 'Provider Unavailable';
+        errorDescription = 'The service provider is temporarily unavailable. Please try a different network or contact support.';
       } else if (error.message?.toLowerCase().includes('invalid phone')) {
         errorTitle = 'Invalid Phone Number';
         errorDescription = 'Please check the phone number and try again.';
@@ -362,6 +365,22 @@ export default function Airtime() {
                   'Buy Airtime'
                 )}
               </Button>
+
+              {/* Top Up Prompt */}
+              {showTopUpPrompt && (
+                <div className="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+                  <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                    Your wallet balance is insufficient for this purchase.
+                  </p>
+                  <Button
+                    variant="default"
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={() => navigate('/add-money')}
+                  >
+                    Top Up Wallet
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </div>
