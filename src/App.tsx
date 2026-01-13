@@ -30,6 +30,10 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import ExamPin from "./pages/ExamPin";
 import ResellerPromo from "./pages/ResellerPromo";
+import EditProfile from "./pages/EditProfile";
+import Security from "./pages/Security";
+import Support from "./pages/Support";
+import Settings from "./pages/Settings";
 
 // Admin Pages
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -251,6 +255,38 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <ResellerPromo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile/edit"
+          element={
+            <ProtectedRoute>
+              <EditProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/security"
+          element={
+            <ProtectedRoute>
+              <Security />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/support"
+          element={
+            <ProtectedRoute>
+              <Support />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           }
         />
