@@ -214,20 +214,18 @@ export default function Airtime() {
       let errorTitle = 'Purchase Failed';
       let errorDescription = error.message || 'Unable to complete purchase. Please try again.';
       
-      const isInsufficientBalance = error.message?.toLowerCase().includes('insufficient balance') && 
-        !error.message?.toLowerCase().includes('provider');
+      // Only show insufficient balance prompt for USER wallet issues (exact match from our edge function)
+      const isUserInsufficientBalance = error.message === 'Insufficient balance';
       
-      if (isInsufficientBalance) {
+      if (isUserInsufficientBalance) {
         errorTitle = 'Insufficient Balance';
         errorDescription = 'You don\'t have enough funds in your wallet.';
         setShowTopUpPrompt(true);
-      } else if (error.message?.toLowerCase().includes('provider') || error.message?.toLowerCase().includes('service provider')) {
-        errorTitle = 'Provider Unavailable';
-        errorDescription = 'The service provider is temporarily unavailable. Please try a different network or contact support.';
       } else if (error.message?.toLowerCase().includes('invalid phone')) {
         errorTitle = 'Invalid Phone Number';
         errorDescription = 'Please check the phone number and try again.';
       }
+      // All other errors (including provider issues) just show generic "Purchase Failed"
       
       toast({
         variant: 'destructive',
