@@ -27,6 +27,16 @@ export interface Wallet {
   updated_at: string;
 }
 
+export interface CashbackWallet {
+  id: string;
+  user_id: string;
+  balance: number;
+  total_earned: number;
+  total_withdrawn: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Transaction {
   id: string;
   user_id: string;

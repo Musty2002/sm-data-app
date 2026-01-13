@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.rgc-services]
 verify_jwt = false
+
+[functions.withdraw-cashback]
+verify_jwt = false

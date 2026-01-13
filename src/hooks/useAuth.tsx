@@ -1,19 +1,21 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { Profile, Wallet } from '@/types/database';
+import { Profile, Wallet, CashbackWallet } from '@/types/database';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   wallet: Wallet | null;
+  cashbackWallet: CashbackWallet | null;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, phone: string, referralCode?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshWallet: () => Promise<void>;
+  refreshCashbackWallet: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [cashbackWallet, setCashbackWallet] = useState<CashbackWallet | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string, retryCount = 0): Promise<void> => {
@@ -57,6 +60,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const fetchCashbackWallet = async (userId: string, retryCount = 0): Promise<void> => {
+    const { data } = await supabase
+      .from('cashback_wallets')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (data) {
+      setCashbackWallet(data as CashbackWallet);
+    } else if (retryCount < 3) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return fetchCashbackWallet(userId, retryCount + 1);
+    }
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -69,10 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setTimeout(() => {
             fetchProfile(session.user.id);
             fetchWallet(session.user.id);
+            fetchCashbackWallet(session.user.id);
           }, 0);
         } else {
           setProfile(null);
           setWallet(null);
+          setCashbackWallet(null);
         }
         setLoading(false);
       }
@@ -85,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         fetchProfile(session.user.id);
         fetchWallet(session.user.id);
+        fetchCashbackWallet(session.user.id);
       }
       setLoading(false);
     });
@@ -170,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setWallet(null);
+    setCashbackWallet(null);
   };
 
   const refreshProfile = async () => {
@@ -184,18 +206,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshCashbackWallet = async () => {
+    if (user) {
+      await fetchCashbackWallet(user.id);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
       session,
       profile,
       wallet,
+      cashbackWallet,
       loading,
       signUp,
       signIn,
       signOut,
       refreshProfile,
       refreshWallet,
+      refreshCashbackWallet,
     }}>
       {children}
     </AuthContext.Provider>

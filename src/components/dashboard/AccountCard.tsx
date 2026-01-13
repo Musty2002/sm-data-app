@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Copy, Plus, History, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, Copy, Plus, History, RefreshCw, Gift, ArrowDownToLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -7,10 +7,11 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 export function AccountCard() {
-  const { profile, wallet, user, refreshWallet, refreshProfile } = useAuth();
+  const { profile, wallet, cashbackWallet, user, refreshWallet, refreshProfile, refreshCashbackWallet } = useAuth();
   const [showBalance, setShowBalance] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('just now');
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -18,7 +19,7 @@ export function AccountCard() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase
+    const walletChannel = supabase
       .channel('wallet-balance-updates')
       .on(
         'postgres_changes',
@@ -40,10 +41,28 @@ export function AccountCard() {
       )
       .subscribe();
 
+    const cashbackChannel = supabase
+      .channel('cashback-wallet-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'cashback_wallets',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('Cashback wallet updated:', payload);
+          refreshCashbackWallet();
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(walletChannel);
+      supabase.removeChannel(cashbackChannel);
     };
-  }, [user?.id, refreshWallet, toast]);
+  }, [user?.id, refreshWallet, refreshCashbackWallet, toast]);
 
   // Update "last updated" time
   useEffect(() => {
@@ -85,6 +104,8 @@ export function AccountCard() {
   const bankName = isAccountReady ? 'PalmPay' : null;
   const accountName = profile?.virtual_account_name || null;
 
+  const canWithdrawCashback = (cashbackWallet?.balance || 0) >= 100;
+
   const retryVirtualAccountCreation = async () => {
     if (!user || !profile) return;
     
@@ -122,85 +143,167 @@ export function AccountCard() {
     }
   };
 
+  const handleWithdrawCashback = async () => {
+    if (!canWithdrawCashback) {
+      toast({
+        title: 'Cannot Withdraw',
+        description: 'Minimum cashback withdrawal is ₦100',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsWithdrawing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('withdraw-cashback');
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: 'Cashback Withdrawn!',
+          description: data.message,
+        });
+        refreshWallet();
+        refreshCashbackWallet();
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error: any) {
+      console.error('Error withdrawing cashback:', error);
+      toast({
+        title: 'Withdrawal Failed',
+        description: error.message || 'Please try again later.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
   return (
-    <div className="gradient-primary rounded-2xl p-5 text-primary-foreground mx-4 shadow-lg">
-      {/* Account Info */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col">
-            {isAccountReady ? (
-              <>
-                <span className="text-xs opacity-75">{bankName}</span>
+    <div className="space-y-3 mx-4">
+      {/* Main Wallet Card */}
+      <div className="gradient-primary rounded-2xl p-5 text-primary-foreground shadow-lg">
+        {/* Account Info */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col">
+              {isAccountReady ? (
+                <>
+                  <span className="text-xs opacity-75">{bankName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm opacity-90">{profile?.account_number}</span>
+                    <button onClick={copyAccountNumber} className="p-1 hover:bg-white/10 rounded">
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </>
+              ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm opacity-90">{profile?.account_number}</span>
-                  <button onClick={copyAccountNumber} className="p-1 hover:bg-white/10 rounded">
-                    <Copy className="w-4 h-4" />
+                  <span className="text-xs opacity-75">
+                    {isRetrying ? 'Creating account...' : 'Account not ready'}
+                  </span>
+                  <button
+                    onClick={retryVirtualAccountCreation}
+                    disabled={isRetrying}
+                    className="p-1 hover:bg-white/10 rounded disabled:opacity-50"
+                    title="Retry account creation"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isRetrying ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-xs opacity-75">
-                  {isRetrying ? 'Creating account...' : 'Account not ready'}
-                </span>
-                <button
-                  onClick={retryVirtualAccountCreation}
-                  disabled={isRetrying}
-                  className="p-1 hover:bg-white/10 rounded disabled:opacity-50"
-                  title="Retry account creation"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isRetrying ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
+          {isAccountReady && (
+            <span className="text-xs opacity-75 bg-white/10 px-2 py-1 rounded">{accountName}</span>
+          )}
         </div>
-        {isAccountReady && (
-          <span className="text-xs opacity-75 bg-white/10 px-2 py-1 rounded">{accountName}</span>
-        )}
-      </div>
 
-      {/* User Name */}
-      <p className="text-sm opacity-90 mb-1">Hello,</p>
-      <h2 className="text-lg font-semibold mb-4">{profile?.full_name || 'User'} 👋</h2>
+        {/* User Name */}
+        <p className="text-sm opacity-90 mb-1">Hello,</p>
+        <h2 className="text-lg font-semibold mb-4">{profile?.full_name || 'User'} 👋</h2>
 
-      {/* Balance */}
-      <div className="mb-1">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold">
-            {showBalance ? formatBalance(wallet?.balance || 0) : '₦ ****'}
-          </span>
-          <button
-            onClick={() => setShowBalance(!showBalance)}
-            className="p-1 hover:bg-white/10 rounded"
+        {/* Balance */}
+        <div className="mb-1">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-bold">
+              {showBalance ? formatBalance(wallet?.balance || 0) : '₦ ****'}
+            </span>
+            <button
+              onClick={() => setShowBalance(!showBalance)}
+              className="p-1 hover:bg-white/10 rounded"
+            >
+              {showBalance ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+          <p className="text-xs opacity-75">Last updated {lastUpdated}</p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 mt-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1 bg-white/20 hover:bg-white/30 text-white border-0"
+            onClick={() => navigate('/add-money')}
+            disabled={!isAccountReady}
           >
-            {showBalance ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-          </button>
+            <Plus className="w-4 h-4 mr-1" />
+            Add Money
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1 bg-white/20 hover:bg-white/30 text-white border-0"
+            onClick={() => navigate('/history')}
+          >
+            <History className="w-4 h-4 mr-1" />
+            History
+          </Button>
         </div>
-        <p className="text-xs opacity-75">Last updated {lastUpdated}</p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-3 mt-4">
-        <Button
-          variant="secondary"
-          size="sm"
-          className="flex-1 bg-white/20 hover:bg-white/30 text-white border-0"
-          onClick={() => navigate('/add-money')}
-          disabled={!isAccountReady}
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Add Money
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="flex-1 bg-white/20 hover:bg-white/30 text-white border-0"
-          onClick={() => navigate('/history')}
-        >
-          <History className="w-4 h-4 mr-1" />
-          History
-        </Button>
+      {/* Cashback Wallet Card */}
+      <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-4 text-white shadow-md">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              <Gift className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs opacity-90">Cashback Balance</p>
+              <p className="text-lg font-bold">
+                {showBalance ? formatBalance(cashbackWallet?.balance || 0) : '₦ ****'}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-white/20 hover:bg-white/30 text-white border-0"
+            onClick={handleWithdrawCashback}
+            disabled={!canWithdrawCashback || isWithdrawing}
+          >
+            {isWithdrawing ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <ArrowDownToLine className="w-4 h-4 mr-1" />
+                Withdraw
+              </>
+            )}
+          </Button>
+        </div>
+        {!canWithdrawCashback && (cashbackWallet?.balance || 0) > 0 && (
+          <p className="text-xs opacity-75 mt-2">
+            Minimum ₦100 required to withdraw ({formatBalance(100 - (cashbackWallet?.balance || 0))} more needed)
+          </p>
+        )}
+        <p className="text-xs opacity-75 mt-2">
+          Earn ₦5/GB on data • ₦2/₦100 on airtime
+        </p>
       </div>
     </div>
   );
