@@ -5,7 +5,8 @@ import {
   Tv, 
   Gift,
   BookOpen,
-  Coins
+  Coins,
+  Trophy
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,6 +18,7 @@ const services = [
   { icon: BookOpen, label: 'Exam Pin', path: '/exam-pin', color: 'bg-indigo-100 text-indigo-600' },
   { icon: Coins, label: 'Cashback', path: '/cashback', color: 'bg-orange-100 text-orange-600' },
   { icon: Gift, label: 'Refer & Earn', path: '/referral', color: 'bg-pink-100 text-pink-600' },
+  { icon: Trophy, label: 'Reseller Promo', path: '/reseller-promo', color: 'bg-amber-100 text-amber-600' },
 ];
 
 export function ServicesGrid() {
