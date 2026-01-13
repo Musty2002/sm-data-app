@@ -26,6 +26,7 @@ import WebAbout from "./pages/WebAbout";
 import WebContact from "./pages/WebContact";
 import WebPricing from "./pages/WebPricing";
 import Cashback from "./pages/Cashback";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 // Admin Pages
@@ -231,7 +232,8 @@ function AppRoutes() {
             <Cashback />
           </ProtectedRoute>
         }
-      />
+        />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

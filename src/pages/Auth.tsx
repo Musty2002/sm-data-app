@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import logo from '@/assets/sm-data-logo.jpeg';
 
 const signUpSchema = z.object({
@@ -237,7 +238,10 @@ export default function Auth() {
           )}
 
           <div>
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              {isLogin && <ForgotPasswordDialog />}
+            </div>
             <div className="relative">
               <Input
                 id="password"
