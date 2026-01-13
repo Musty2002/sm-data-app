@@ -57,7 +57,8 @@ async function makeISquareRequest(endpoint: string, method: 'GET' | 'POST' = 'GE
     if (data.network && Array.isArray(data.network)) {
       const networkError = data.network[0];
       if (networkError?.toLowerCase().includes('insufficient balance')) {
-        errorMessage = 'Service provider has insufficient balance. Please try RGC network or contact support.';
+        // Provider insufficient balance - generic failure message (not user's wallet)
+        errorMessage = 'Provider error: Unable to process request';
       } else {
         errorMessage = networkError;
       }
