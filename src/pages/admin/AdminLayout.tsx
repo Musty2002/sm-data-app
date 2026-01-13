@@ -27,7 +27,6 @@ const navItems = [
   { to: '/admin/transactions', icon: Receipt, label: 'Transactions' },
   { to: '/admin/top-resellers', icon: Trophy, label: 'Top Resellers' },
   { to: '/admin/notifications', icon: Bell, label: 'Notifications' },
-  { to: '/admin/pricing', icon: DollarSign, label: 'Service Pricing' },
   { to: '/admin/data-pricing', icon: DollarSign, label: 'Data Pricing' },
   { to: '/admin/wallets', icon: Wallet, label: 'Wallets' },
   { to: '/admin/referrals', icon: Gift, label: 'Referrals' },
