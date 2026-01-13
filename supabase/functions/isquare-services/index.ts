@@ -16,6 +16,7 @@ interface ServiceRequest {
   amount?: number;
   plan_name?: string; // plan name for cashback calculation
   network?: number; // network id for airtime
+  mobile_number?: string; // alternative phone number field
 }
 
 async function makeISquareRequest(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: object) {
@@ -59,12 +60,25 @@ async function getDataServices() {
   return await makeISquareRequest('/data/services/');
 }
 
+async function getAirtimeServices() {
+  return await makeISquareRequest('/airtime/services/');
+}
+
 async function purchaseData(planId: number, phoneNumber: string, reference: string) {
   return await makeISquareRequest('/data/buy/', 'POST', {
     plan: planId,
     phone_number: phoneNumber,
     reference,
     disable_validation: false,
+  });
+}
+
+async function purchaseAirtime(networkId: number, phoneNumber: string, amount: number, reference: string) {
+  return await makeISquareRequest('/airtime/buy/', 'POST', {
+    service: networkId,
+    phone_number: phoneNumber,
+    amount: amount,
+    reference,
   });
 }
 
@@ -309,12 +323,45 @@ function extractDataSizeGB(planName: string): number {
   return 0;
 }
 
-// Services to include from iSquare (based on actual API availability)
-// Note: Services 6 (9Mobile SME), 7 (MTN Corporate), 12 (MTN Direct Coupon) are NOT available in this API account
+// Transform iSquare airtime services to match RGC format
+function transformISquareAirtimeServices(data: any[]) {
+  const transformed: any[] = [];
+  
+  console.log('Processing iSquare airtime services, total services:', data.length);
+  
+  for (const service of data) {
+    if (!service.is_active) continue;
+    
+    // Map iSquare network names to our format
+    let category = service.name?.toUpperCase() || '';
+    if (category.includes('MTN')) category = 'MTN';
+    else if (category.includes('AIRTEL')) category = 'AIRTEL';
+    else if (category.includes('GLO')) category = 'GLO';
+    else if (category.includes('9MOBILE') || category.includes('ETISALAT')) category = '9MOBILE';
+    
+    transformed.push({
+      id: service.id,
+      product_id: service.id,
+      service: 'Airtime',
+      name: service.name,
+      category: category,
+      available: service.is_active,
+      provider: 'isquare',
+    });
+    
+    console.log(`Including airtime service ID: ${service.id}, Name: ${service.name}, Category: ${category}`);
+  }
+  
+  console.log('Transformed iSquare airtime services count:', transformed.length);
+  
+  return transformed;
+}
+
+// Services to include from iSquare for Data (based on actual API availability)
 const ISQUARE_SERVICE_CONFIG: Record<number, { category: string; network: string }> = {
-  16: { category: 'GLO SME', network: 'GLO' },           // GLO SME (cheaper rates)
-  17: { category: 'MTN AWOOF DATA', network: 'MTN' },    // MTN AWOOF DATA (cheaper rates)
-  18: { category: 'AIRTEL AWOOF', network: 'AIRTEL' },   // AIRTEL AWOOF (loan-sensitive, cheaper)
+  16: { category: 'GLO SME', network: 'GLO' },
+  17: { category: 'MTN AWOOF DATA', network: 'MTN' },
+  18: { category: 'AIRTEL AWOOF', network: 'AIRTEL' },
 };
 
 // Transform iSquare data format to match RGC format for compatibility
@@ -390,6 +437,13 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+      if (serviceType === 'airtime') {
+        const result = await getAirtimeServices();
+        const transformed = transformISquareAirtimeServices(result);
+        return new Response(JSON.stringify({ success: true, data: transformed }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       throw new Error('Unsupported service type for iSquare');
     }
 
@@ -453,6 +507,49 @@ Deno.serve(async (req) => {
           if (dataCashback > 0) {
             await addCashback(supabase, userId, dataCashback, 'data', description);
           }
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            data: result,
+            reference: result.reference || reference 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } else if (serviceType === 'airtime') {
+          const phoneNumber = body.phone_number || body.mobile_number;
+          if (!body.network || !phoneNumber || !body.amount) {
+            throw new Error('Missing required fields for airtime purchase');
+          }
+          
+          amount = body.amount;
+          description = `Airtime purchase - ${phoneNumber}`;
+          const reference = `ISQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+          // Deduct from wallet first
+          const deducted = await deductFromWallet(supabase, userId, amount);
+          if (!deducted) {
+            return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const result = await purchaseAirtime(body.network, phoneNumber, amount, reference);
+          
+          await recordTransaction(
+            supabase, 
+            userId, 
+            amount, 
+            'airtime', 
+            description, 
+            result.status === 'success' ? 'completed' : 'pending',
+            result.reference || reference, 
+            { 
+              mobile_number: phoneNumber, 
+              network: body.network,
+              provider: 'isquare'
+            }
+          );
 
           return new Response(JSON.stringify({ 
             success: true, 

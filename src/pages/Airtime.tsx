@@ -22,6 +22,7 @@ interface AirtimeService {
   name: string | null;
   category: string;
   available: boolean;
+  provider?: 'rgc' | 'isquare';
 }
 
 const networkLogos: Record<string, string> = {
@@ -98,15 +99,39 @@ export default function Airtime() {
 
   const fetchNetworks = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('rgc-services', {
-        body: { action: 'get-services', serviceType: 'airtime' }
-      });
+      // Fetch from both RGC and iSquare
+      const [rgcResponse, isquareResponse] = await Promise.all([
+        supabase.functions.invoke('rgc-services', {
+          body: { action: 'get-services', serviceType: 'airtime' }
+        }),
+        supabase.functions.invoke('isquare-services', {
+          body: { action: 'get-services', serviceType: 'airtime' }
+        })
+      ]);
 
-      if (error) throw error;
+      let allNetworks: AirtimeService[] = [];
 
-      if (data.success && data.data) {
-        setNetworks(data.data);
+      // Process RGC networks
+      if (rgcResponse.data?.success && rgcResponse.data?.data) {
+        const rgcNetworks = rgcResponse.data.data.map((n: AirtimeService) => ({ ...n, provider: 'rgc' as const }));
+        allNetworks = [...allNetworks, ...rgcNetworks];
       }
+
+      // Process iSquare networks (prefer iSquare for better rates)
+      if (isquareResponse.data?.success && isquareResponse.data?.data) {
+        const isquareNetworks = isquareResponse.data.data.map((n: AirtimeService) => ({ ...n, provider: 'isquare' as const }));
+        // Replace RGC networks with iSquare ones if available
+        for (const isqNetwork of isquareNetworks) {
+          const existingIndex = allNetworks.findIndex(n => n.category === isqNetwork.category);
+          if (existingIndex >= 0) {
+            allNetworks[existingIndex] = isqNetwork; // Replace with iSquare (better rates)
+          } else {
+            allNetworks.push(isqNetwork);
+          }
+        }
+      }
+
+      setNetworks(allNetworks);
     } catch (error: any) {
       console.error('Error fetching networks:', error);
       toast({
@@ -141,13 +166,20 @@ export default function Airtime() {
 
     setPurchasing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('rgc-services', {
+      // Route to appropriate provider based on network provider
+      const provider = selectedNetwork.provider || 'rgc';
+      const functionName = provider === 'isquare' ? 'isquare-services' : 'rgc-services';
+      
+      console.log(`Purchasing airtime via ${provider} provider`);
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           action: 'purchase',
           serviceType: 'airtime',
-          network: selectedNetwork.product_id, // Use product_id, not id
+          network: selectedNetwork.product_id,
           amount: amountNum,
           mobile_number: phoneNumber,
+          phone_number: phoneNumber, // iSquare uses phone_number
         }
       });
 
@@ -202,7 +234,7 @@ export default function Airtime() {
       <div className="safe-area-top">
         {/* Header */}
         <div className="flex items-center gap-4 px-4 py-4">
-          <button onClick={() => navigate(-1)} className="p-2 -ml-2">
+          <button onClick={() => navigate('/dashboard')} className="p-2 -ml-2">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-lg font-bold text-foreground">Buy Airtime</h1>
