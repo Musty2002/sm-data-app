@@ -9,7 +9,7 @@ const RGC_BASE_URL = 'https://api.rgcdata.com.ng';
 
 interface ServiceRequest {
   action: 'get-services' | 'validate' | 'purchase';
-  serviceType: 'airtime' | 'data' | 'cable' | 'electricity';
+  serviceType: 'airtime' | 'data' | 'cable' | 'electricity' | 'resultcheck';
   // For purchases
   network?: string | number; // airtime network code / id
   amount?: number;
@@ -23,6 +23,10 @@ interface ServiceRequest {
   meter_number?: string;
   // For validation
   cable_name?: string;
+  // For exam pins
+  examid?: number; // product_id for exam
+  quantity?: number; // number of pins
+  exam_name?: string; // exam name for description
 }
 
 async function makeRGCRequest(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: object) {
@@ -102,6 +106,13 @@ async function purchaseElectricity(discoid: number, meterType: string, meterNumb
     MeterType: meterType,
     meter_number: meterNumber,
     amount,
+  });
+}
+
+async function purchaseExamPin(examid: number, quantity: number) {
+  return await makeRGCRequest('/api/v2/purchase/resultcheck', 'POST', {
+    examid,
+    quantity,
   });
 }
 
@@ -549,6 +560,29 @@ Deno.serve(async (req) => {
 
           result = await purchaseElectricity(body.discoid, body.MeterType, body.meter_number, body.amount);
           await recordTransaction(supabase, userId, amount, 'electricity', description, 'completed', undefined, { meter_number: body.meter_number, discoid: body.discoid, meter_type: body.MeterType });
+
+        } else if (serviceType === 'resultcheck') {
+          if (!body.examid || !body.quantity || !body.amount) {
+            throw new Error('Missing required fields for exam pin purchase');
+          }
+          amount = body.amount;
+          const examName = body.exam_name || 'Exam';
+          description = `${examName} pin purchase x${body.quantity}`;
+
+          const deducted = await deductFromWallet(supabase, userId, amount);
+          if (!deducted) {
+            return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          result = await purchaseExamPin(body.examid, body.quantity);
+          await recordTransaction(supabase, userId, amount, 'airtime', description, 'completed', undefined, { 
+            examid: body.examid, 
+            quantity: body.quantity,
+            exam_name: examName 
+          });
 
         } else {
           throw new Error('Invalid service type');
