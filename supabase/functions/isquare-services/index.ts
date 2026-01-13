@@ -339,7 +339,7 @@ function transformISquareDataServices(data: any[]) {
         id: plan.id,
         product_id: plan.id,
         service: 'Data',
-        amount: plan.api_amount, // Use API price (cheapest)
+        amount: plan.reseller_amount, // Use reseller price (selling price)
         name: plan.name,
         category: category,
         available: plan.is_active,
