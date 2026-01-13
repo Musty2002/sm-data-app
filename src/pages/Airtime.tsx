@@ -185,14 +185,11 @@ export default function Airtime() {
       });
 
       // Check for function error or unsuccessful response
-      if (error) {
-        // Try to parse error context for message
-        const errorMessage = error.message || 'Purchase failed';
+      // When edge function returns 4xx/5xx, the response body is in `data`, not `error.message`
+      if (error || !data?.success) {
+        // Prioritize the message from the response data (contains actual error like "Insufficient balance")
+        const errorMessage = data?.message || error?.message || 'Purchase failed';
         throw new Error(errorMessage);
-      }
-
-      if (!data?.success) {
-        throw new Error(data?.message || 'Purchase failed');
       }
 
       // Set transaction data and show receipt
