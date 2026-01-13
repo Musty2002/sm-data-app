@@ -50,7 +50,34 @@ async function makeISquareRequest(endpoint: string, method: 'GET' | 'POST' = 'GE
   console.log(`iSquare response data:`, JSON.stringify(data));
   
   if (!response.ok) {
-    throw new Error(data.message || data.detail || 'iSquare API request failed');
+    // Parse specific error messages from iSquare
+    let errorMessage = 'iSquare API request failed';
+    
+    // Check for specific error patterns
+    if (data.network && Array.isArray(data.network)) {
+      const networkError = data.network[0];
+      if (networkError?.toLowerCase().includes('insufficient balance')) {
+        errorMessage = 'Service provider has insufficient balance. Please try RGC network or contact support.';
+      } else {
+        errorMessage = networkError;
+      }
+    } else if (data.phone_number && Array.isArray(data.phone_number)) {
+      errorMessage = `Invalid phone number: ${data.phone_number[0]}`;
+    } else if (data.amount && Array.isArray(data.amount)) {
+      errorMessage = `Amount error: ${data.amount[0]}`;
+    } else if (data.detail) {
+      errorMessage = data.detail;
+    } else if (data.message) {
+      errorMessage = data.message;
+    } else if (typeof data === 'object') {
+      // Try to extract any error message from the response
+      const firstKey = Object.keys(data)[0];
+      if (firstKey && Array.isArray(data[firstKey])) {
+        errorMessage = data[firstKey][0];
+      }
+    }
+    
+    throw new Error(errorMessage);
   }
   
   return data;

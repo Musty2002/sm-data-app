@@ -75,7 +75,35 @@ export function TransactionReceipt({ open, onClose, transaction }: TransactionRe
   };
 
   const handleShare = async () => {
-    const receiptText = `
+    if (!receiptRef.current) return;
+    
+    try {
+      // Generate image from receipt
+      const canvas = await html2canvas(receiptRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+      });
+      
+      // Convert to blob for sharing
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => resolve(b!), 'image/png');
+      });
+      
+      const file = new File([blob], `SM-Data-Receipt-${transactionId}.png`, { type: 'image/png' });
+      
+      // Check if Web Share API supports files
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: 'SM Data App - Transaction Receipt',
+          text: `Transaction Receipt - ${transaction.type === 'data' ? transaction.dataPlan : 'Airtime'} for ${transaction.phoneNumber}`,
+          files: [file],
+        });
+        toast.success('Receipt shared successfully!');
+      } else if (navigator.share) {
+        // Fallback to text share if file sharing not supported
+        const receiptText = `
 ━━━━━━━━━━━━━━━━━━━━━━
     SM DATA APP
    TRANSACTION RECEIPT
@@ -83,39 +111,36 @@ export function TransactionReceipt({ open, onClose, transaction }: TransactionRe
 
 ✅ TRANSACTION SUCCESSFUL
 
-📋 Transaction ID:
-${transactionId}
-
-📅 Date & Time:
-${format(transaction.date, 'dd MMM yyyy, hh:mm a')}
-
-📱 Phone Number:
-${transaction.phoneNumber}
-
+📋 Transaction ID: ${transactionId}
+📅 Date & Time: ${format(transaction.date, 'dd MMM yyyy, hh:mm a')}
+📱 Phone Number: ${transaction.phoneNumber}
 📶 Network: ${transaction.network}
 ${transaction.type === 'data' && transaction.dataPlan ? `📦 Data Plan: ${transaction.dataPlan}` : `📞 Service: Airtime`}
-
 💰 Amount Paid: ₦${transaction.amount.toLocaleString()}.00
 
 ━━━━━━━━━━━━━━━━━━━━━━
 🌐 www.smdataapp.com.ng
 📞 Support: 09026486913
-📧 support@smdatapp.com
 ━━━━━━━━━━━━━━━━━━━━━━
-    `.trim();
-
-    if (navigator.share) {
-      try {
+        `.trim();
+        
         await navigator.share({
           title: 'SM Data App - Transaction Receipt',
           text: receiptText,
         });
-      } catch (error) {
-        console.log('Share cancelled');
+      } else {
+        // Fallback: download the image instead
+        const link = document.createElement('a');
+        link.download = `SM-Data-Receipt-${transactionId}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        toast.success('Receipt saved as image!');
       }
-    } else {
-      navigator.clipboard.writeText(receiptText);
-      toast.success('Receipt copied to clipboard!');
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error('Error sharing receipt:', error);
+        toast.error('Failed to share receipt');
+      }
     }
   };
 

@@ -206,10 +206,28 @@ export default function Airtime() {
       }
     } catch (error: any) {
       console.error('Purchase error:', error);
+      
+      // Parse error message for user-friendly display
+      let errorTitle = 'Purchase Failed';
+      let errorDescription = error.message || 'Unable to complete purchase. Please try again.';
+      
+      if (error.message?.toLowerCase().includes('insufficient balance')) {
+        if (error.message?.toLowerCase().includes('provider') || error.message?.toLowerCase().includes('wallet')) {
+          errorTitle = 'Provider Unavailable';
+          errorDescription = 'The service provider is temporarily unavailable. Please try a different network or contact support.';
+        } else {
+          errorTitle = 'Insufficient Balance';
+          errorDescription = 'You don\'t have enough funds in your wallet. Please top up and try again.';
+        }
+      } else if (error.message?.toLowerCase().includes('invalid phone')) {
+        errorTitle = 'Invalid Phone Number';
+        errorDescription = 'Please check the phone number and try again.';
+      }
+      
       toast({
         variant: 'destructive',
-        title: 'Purchase Failed',
-        description: error.message || 'Unable to complete purchase. Please try again.',
+        title: errorTitle,
+        description: errorDescription,
       });
     } finally {
       setPurchasing(false);
