@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -10,14 +13,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Loader2,
   Gift,
   Users,
   CheckCircle,
-  Clock
+  Clock,
+  Edit
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface Referral {
   id: string;
@@ -41,6 +59,9 @@ export default function ReferralsPage() {
     pending: 0,
     totalBonusPaid: 0
   });
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingReferral, setEditingReferral] = useState<Referral | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchReferrals();
@@ -63,7 +84,7 @@ export default function ReferralsPage() {
       setReferrals(referralsData);
 
       // Calculate stats
-      const completed = referralsData.filter(r => r.status === 'completed');
+      const completed = referralsData.filter(r => r.status === 'completed' || r.status === 'bonus_paid');
       setStats({
         total: referralsData.length,
         completed: completed.length,
@@ -79,10 +100,51 @@ export default function ReferralsPage() {
     }
   };
 
+  const handleEdit = (referral: Referral) => {
+    setEditingReferral({ ...referral });
+    setEditDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!editingReferral) return;
+    
+    setSaving(true);
+    try {
+      const updateData: any = {
+        status: editingReferral.status,
+        referrer_bonus: editingReferral.referrer_bonus,
+        referee_bonus: editingReferral.referee_bonus,
+      };
+
+      // Set bonus_paid_at when marking as bonus_paid
+      if (editingReferral.status === 'bonus_paid' && !editingReferral.bonus_paid_at) {
+        updateData.bonus_paid_at = new Date().toISOString();
+      }
+
+      const { error } = await supabase
+        .from('referrals')
+        .update(updateData)
+        .eq('id', editingReferral.id);
+
+      if (error) throw error;
+
+      toast.success('Referral updated successfully');
+      setEditDialogOpen(false);
+      fetchReferrals();
+    } catch (error) {
+      console.error('Error updating referral:', error);
+      toast.error('Failed to update referral');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
         return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+      case 'bonus_paid':
+        return <Badge className="bg-purple-100 text-purple-800">Bonus Paid</Badge>;
       case 'pending':
         return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
       default:
@@ -179,12 +241,13 @@ export default function ReferralsPage() {
                   <TableHead>Referee Bonus</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {referrals.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                       No referrals yet
                     </TableCell>
                   </TableRow>
@@ -213,6 +276,15 @@ export default function ReferralsPage() {
                       <TableCell className="whitespace-nowrap text-gray-500">
                         {format(new Date(ref.created_at), 'MMM d, yyyy')}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(ref)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -221,6 +293,87 @@ export default function ReferralsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Referral</DialogTitle>
+          </DialogHeader>
+          {editingReferral && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="text-xs text-gray-500">Referrer</p>
+                  <p className="font-medium">{editingReferral.referrer?.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Referee</p>
+                  <p className="font-medium">{editingReferral.referee?.full_name}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={editingReferral.status}
+                  onValueChange={(value) => setEditingReferral({ ...editingReferral, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="bonus_paid">Bonus Paid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Referrer Bonus (₦)</Label>
+                  <Input
+                    type="number"
+                    value={editingReferral.referrer_bonus}
+                    onChange={(e) => setEditingReferral({ 
+                      ...editingReferral, 
+                      referrer_bonus: parseFloat(e.target.value) || 0 
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Referee Bonus (₦)</Label>
+                  <Input
+                    type="number"
+                    value={editingReferral.referee_bonus}
+                    onChange={(e) => setEditingReferral({ 
+                      ...editingReferral, 
+                      referee_bonus: parseFloat(e.target.value) || 0 
+                    })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
