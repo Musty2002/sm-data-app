@@ -40,6 +40,24 @@ const networkColors: Record<string, string> = {
 
 const quickAmounts = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
 
+// Phone prefix to network mapping
+const networkPrefixes: Record<string, string> = {
+  // MTN prefixes
+  '0803': 'MTN', '0806': 'MTN', '0703': 'MTN', '0706': 'MTN',
+  '0813': 'MTN', '0816': 'MTN', '0810': 'MTN', '0814': 'MTN',
+  '0903': 'MTN', '0906': 'MTN', '0913': 'MTN', '0916': 'MTN',
+  // Airtel prefixes
+  '0802': 'AIRTEL', '0808': 'AIRTEL', '0708': 'AIRTEL', '0701': 'AIRTEL',
+  '0812': 'AIRTEL', '0902': 'AIRTEL', '0901': 'AIRTEL', '0904': 'AIRTEL',
+  '0907': 'AIRTEL', '0912': 'AIRTEL',
+  // Glo prefixes
+  '0805': 'GLO', '0807': 'GLO', '0705': 'GLO', '0815': 'GLO',
+  '0811': 'GLO', '0905': 'GLO', '0915': 'GLO',
+  // 9mobile prefixes
+  '0809': '9MOBILE', '0817': '9MOBILE', '0818': '9MOBILE', '0908': '9MOBILE',
+  '0909': '9MOBILE',
+};
+
 export default function Airtime() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -62,6 +80,21 @@ export default function Airtime() {
   useEffect(() => {
     fetchNetworks();
   }, []);
+
+  // Auto-detect network from phone number prefix
+  useEffect(() => {
+    if (phoneNumber.length >= 4 && networks.length > 0) {
+      const prefix = phoneNumber.substring(0, 4);
+      const detectedNetwork = networkPrefixes[prefix];
+      
+      if (detectedNetwork) {
+        const matchingNetwork = networks.find(n => n.category === detectedNetwork);
+        if (matchingNetwork && (!selectedNetwork || selectedNetwork.category !== detectedNetwork)) {
+          setSelectedNetwork(matchingNetwork);
+        }
+      }
+    }
+  }, [phoneNumber, networks]);
 
   const fetchNetworks = async () => {
     try {
