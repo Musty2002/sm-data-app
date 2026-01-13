@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { TransactionReceipt } from '@/components/TransactionReceipt';
-
+import { getEdgeFunctionErrorMessage } from '@/lib/edgeFunctionError';
 // Import network logos
 import mtnLogo from '@/assets/networks/mtn-logo.png';
 import airtelLogo from '@/assets/networks/airtel-logo.png';
@@ -161,34 +161,46 @@ export default function Data() {
         }
       });
 
-      if (error) throw error;
-
-      if (data.success) {
-        setLastTransaction({
-          id: data.data?.reference || data.reference || `TXN-${Date.now()}`,
-          date: new Date(),
-          phoneNumber,
-          network: selectedNetwork!.toUpperCase(),
-          amount: parseFloat(selectedBundle.amount),
-          type: 'data',
-          dataPlan: selectedBundle.name,
-        });
-        setShowReceipt(true);
-        
-        setPhoneNumber('');
-        setSelectedBundle(null);
-        setSelectedCategory(null);
-        setSelectedNetwork(null);
-        setStep('network');
-      } else {
-        throw new Error(data.message || 'Purchase failed');
+      if (error) {
+        const message = await getEdgeFunctionErrorMessage(error);
+        throw new Error(message || 'Purchase failed');
       }
+
+      if (!data?.success) {
+        throw new Error(data?.message || 'Purchase failed');
+      }
+
+      setLastTransaction({
+        id: data.data?.reference || data.reference || `TXN-${Date.now()}`,
+        date: new Date(),
+        phoneNumber,
+        network: selectedNetwork!.toUpperCase(),
+        amount: parseFloat(selectedBundle.amount),
+        type: 'data',
+        dataPlan: selectedBundle.name,
+      });
+      setShowReceipt(true);
+      
+      setPhoneNumber('');
+      setSelectedBundle(null);
+      setSelectedCategory(null);
+      setSelectedNetwork(null);
+      setStep('network');
     } catch (error: any) {
       console.error('Purchase error:', error);
+
+      let title = 'Purchase Failed';
+      let description = error.message || 'Unable to complete purchase. Please try again.';
+
+      if (error.message === 'Insufficient balance') {
+        title = 'Insufficient Balance';
+        description = "You don't have enough funds in your wallet. Please top up and try again.";
+      }
+
       toast({
         variant: 'destructive',
-        title: 'Purchase Failed',
-        description: error.message || 'Unable to complete purchase. Please try again.',
+        title,
+        description,
       });
     } finally {
       setPurchasing(false);
