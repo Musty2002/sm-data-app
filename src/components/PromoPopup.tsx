@@ -67,20 +67,22 @@ export function PromoPopup() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="p-0 border-0 bg-transparent max-w-[90vw] sm:max-w-md shadow-none">
-        <div className="relative">
+      <DialogContent className="p-0 border-0 bg-transparent w-[80vw] max-w-[320px] shadow-none [&>button]:hidden">
+        <div className="relative animate-scale-in">
           <button
             onClick={handleClose}
-            className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-background shadow-lg flex items-center justify-center hover:bg-muted transition-colors"
+            className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-background/95 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-muted transition-all active:scale-95 border border-border"
           >
-            <X className="w-5 h-5 text-foreground" />
+            <X className="w-4 h-4 text-foreground" />
           </button>
-          <img
-            src={banner.image_url}
-            alt={banner.title}
-            onClick={handleClick}
-            className="w-full h-auto rounded-xl cursor-pointer shadow-2xl"
-          />
+          <div className="rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
+            <img
+              src={banner.image_url}
+              alt={banner.title}
+              onClick={handleClick}
+              className="w-full h-auto max-h-[60vh] object-contain cursor-pointer"
+            />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
