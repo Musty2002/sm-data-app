@@ -14,7 +14,8 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronLeft
+  ChevronLeft,
+  Trophy
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/transactions', icon: Receipt, label: 'Transactions' },
+  { to: '/admin/top-resellers', icon: Trophy, label: 'Top Resellers' },
   { to: '/admin/notifications', icon: Bell, label: 'Notifications' },
   { to: '/admin/pricing', icon: DollarSign, label: 'Service Pricing' },
   { to: '/admin/data-pricing', icon: DollarSign, label: 'Data Pricing' },

@@ -40,6 +40,7 @@ import TransactionsPage from "./pages/admin/TransactionsPage";
 import NotificationsAdmin from "./pages/admin/NotificationsAdmin";
 import PricingConfig from "./pages/admin/PricingConfig";
 import DataPricingPage from "./pages/admin/DataPricingPage";
+import TopResellersPage from "./pages/admin/TopResellersPage";
 import WalletsPage from "./pages/admin/WalletsPage";
 import ReferralsPage from "./pages/admin/ReferralsPage";
 import SettingsPage from "./pages/admin/SettingsPage";
@@ -274,6 +275,7 @@ function AdminRoutes() {
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<UsersManagement />} />
         <Route path="transactions" element={<TransactionsPage />} />
+        <Route path="top-resellers" element={<TopResellersPage />} />
         <Route path="notifications" element={<NotificationsAdmin />} />
         <Route path="pricing" element={<PricingConfig />} />
         <Route path="data-pricing" element={<DataPricingPage />} />
