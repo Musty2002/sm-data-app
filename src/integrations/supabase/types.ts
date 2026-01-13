@@ -220,6 +220,42 @@ export type Database = {
           },
         ]
       }
+      promo_banners: {
+        Row: {
+          clicks: number | null
+          created_at: string
+          display_order: number | null
+          id: string
+          image_url: string
+          impressions: number | null
+          is_active: boolean | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          clicks?: number | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          image_url: string
+          impressions?: number | null
+          is_active?: boolean | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          clicks?: number | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          image_url?: string
+          impressions?: number | null
+          is_active?: boolean | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       push_notifications: {
         Row: {
           created_at: string | null
