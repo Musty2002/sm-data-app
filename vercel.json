@@ -19,7 +19,29 @@
     },
     {
       "source": "/",
-      "destination": "/admin",
+      "destination": "/website",
+      "permanent": false,
+      "has": [
+        {
+          "type": "host",
+          "value": "smdataapp.com.ng"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "destination": "/admin/login",
+      "permanent": false,
+      "has": [
+        {
+          "type": "host",
+          "value": "admin.smdataapp.com.ng"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?!admin).*)",
+      "destination": "/admin/:path",
       "permanent": false,
       "has": [
         {
