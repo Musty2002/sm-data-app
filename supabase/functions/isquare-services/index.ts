@@ -309,64 +309,48 @@ function extractDataSizeGB(planName: string): number {
   return 0;
 }
 
-// Services to include from iSquare (cheaper rates)
-const ISQUARE_SERVICE_IDS = [
-  7,  // MTN CORPORATE DATA
-  12, // MTN DIRECT COUPON
-  17, // MTN SMART DATA (AWOOF)
-  6,  // 9MOBILE SME DATA
-  16, // GLO AWOOF
-];
+// Services to include from iSquare (based on actual API availability)
+// Note: Services 6 (9Mobile SME), 7 (MTN Corporate), 12 (MTN Direct Coupon) are NOT available in this API account
+const ISQUARE_SERVICE_CONFIG: Record<number, { category: string; network: string }> = {
+  16: { category: 'GLO SME', network: 'GLO' },           // GLO SME (cheaper rates)
+  17: { category: 'MTN AWOOF DATA', network: 'MTN' },    // MTN AWOOF DATA (cheaper rates)
+  18: { category: 'AIRTEL AWOOF', network: 'AIRTEL' },   // AIRTEL AWOOF (loan-sensitive, cheaper)
+};
 
 // Transform iSquare data format to match RGC format for compatibility
 function transformISquareDataServices(data: any[]) {
   const transformed: any[] = [];
   
+  console.log('Processing iSquare services, total services:', data.length);
+  console.log('Available service IDs:', data.map(s => `${s.id}: ${s.name}`).join(', '));
+  
   for (const service of data) {
-    // Only include services we want from iSquare
-    if (!ISQUARE_SERVICE_IDS.includes(service.id)) {
+    const config = ISQUARE_SERVICE_CONFIG[service.id];
+    
+    if (!config) {
       continue;
     }
     
-    const serviceName = service.name?.toUpperCase() || '';
+    console.log(`Including service ID: ${service.id}, Name: ${service.name}, Category: ${config.category}`);
     
     for (const plan of service.plans || []) {
       if (!plan.is_active) continue;
-      
-      // Determine category name based on service
-      let category = serviceName;
-      let network = 'MTN';
-      
-      if (service.id === 7) {
-        category = 'MTN CORPORATE';
-        network = 'MTN';
-      } else if (service.id === 12) {
-        category = 'MTN DIRECT COUPON';
-        network = 'MTN';
-      } else if (service.id === 17) {
-        category = 'MTN AWOOF DATA';
-        network = 'MTN';
-      } else if (service.id === 6) {
-        category = '9MOBILE SME';
-        network = '9MOBILE';
-      } else if (service.id === 16) {
-        category = 'GLO AWOOF';
-        network = 'GLO';
-      }
       
       transformed.push({
         id: plan.id,
         product_id: plan.id,
         service: 'Data',
-        amount: plan.reseller_amount, // Use reseller price (selling price)
+        amount: plan.reseller_amount,
         name: plan.name,
-        category: category,
+        category: config.category,
         available: plan.is_active,
         provider: 'isquare',
-        network: network,
+        network: config.network,
       });
     }
   }
+  
+  console.log('Transformed iSquare plans count:', transformed.length);
   
   return transformed;
 }
