@@ -29,6 +29,7 @@ import Cashback from "./pages/Cashback";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import ExamPin from "./pages/ExamPin";
+import ResellerPromo from "./pages/ResellerPromo";
 
 // Admin Pages
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -242,8 +243,16 @@ function AppRoutes() {
             <ExamPin />
           </ProtectedRoute>
         }
-      />
-      <Route path="/reset-password" element={<ResetPassword />} />
+        />
+        <Route
+          path="/reseller-promo"
+          element={
+            <ProtectedRoute>
+              <ResellerPromo />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
