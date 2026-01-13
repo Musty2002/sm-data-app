@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { TransactionReceipt } from '@/components/TransactionReceipt';
-
+import { getEdgeFunctionErrorMessage } from '@/lib/edgeFunctionError';
 // Import network logos
 import mtnLogo from '@/assets/networks/mtn-logo.png';
 import airtelLogo from '@/assets/networks/airtel-logo.png';
@@ -166,6 +166,7 @@ export default function Airtime() {
     }
 
     setPurchasing(true);
+    setShowTopUpPrompt(false);
     try {
       // Route to appropriate provider based on network provider
       const provider = selectedNetwork.provider || 'rgc';
@@ -184,12 +185,13 @@ export default function Airtime() {
         }
       });
 
-      // Check for function error or unsuccessful response
-      // When edge function returns 4xx/5xx, the response body is in `data`, not `error.message`
-      if (error || !data?.success) {
-        // Prioritize the message from the response data (contains actual error like "Insufficient balance")
-        const errorMessage = data?.message || error?.message || 'Purchase failed';
-        throw new Error(errorMessage);
+      if (error) {
+        const message = await getEdgeFunctionErrorMessage(error);
+        throw new Error(message || 'Purchase failed');
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.message || 'Purchase failed');
       }
 
       // Set transaction data and show receipt
