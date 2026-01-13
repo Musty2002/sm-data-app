@@ -89,43 +89,19 @@ export default function Data() {
 
   const fetchDataBundles = async () => {
     try {
-      // Fetch from both RGC (for non-MTN) and iSquare (for MTN)
-      const [rgcResponse, isquareResponse] = await Promise.all([
-        supabase.functions.invoke('rgc-services', {
-          body: { action: 'get-services', serviceType: 'data' }
-        }),
-        supabase.functions.invoke('isquare-services', {
-          body: { action: 'get-services', serviceType: 'data' }
-        })
-      ]);
+      // Fetch all data bundles from RGC
+      const rgcResponse = await supabase.functions.invoke('rgc-services', {
+        body: { action: 'get-services', serviceType: 'data' }
+      });
 
       let bundles: DataService[] = [];
 
-      // Process RGC bundles (filter out MTN - we'll use iSquare for MTN)
+      // Process all RGC bundles (including MTN)
       if (rgcResponse.data?.success && rgcResponse.data?.data) {
         const rgcBundles = rgcResponse.data.data
           .filter((b: DataService) => b.available)
-          .filter((b: DataService) => !b.category.toUpperCase().includes('MTN')) // Exclude MTN from RGC
           .map((b: DataService) => ({ ...b, provider: 'rgc' as const }));
         bundles = [...bundles, ...rgcBundles];
-      }
-
-      // Process iSquare bundles (MTN only - cheaper rates)
-      if (isquareResponse.data?.success && isquareResponse.data?.data) {
-        const isquareBundles = isquareResponse.data.data
-          .filter((b: DataService) => b.available)
-          .map((b: DataService) => ({ ...b, provider: 'isquare' as const }));
-        bundles = [...bundles, ...isquareBundles];
-      }
-
-      // If iSquare fails, fall back to RGC for MTN
-      if (!isquareResponse.data?.success && rgcResponse.data?.success) {
-        console.log('iSquare unavailable, falling back to RGC for MTN');
-        const rgcMtnBundles = rgcResponse.data.data
-          .filter((b: DataService) => b.available)
-          .filter((b: DataService) => b.category.toUpperCase().includes('MTN'))
-          .map((b: DataService) => ({ ...b, provider: 'rgc' as const }));
-        bundles = [...bundles, ...rgcMtnBundles];
       }
 
       setAllBundles(bundles);
