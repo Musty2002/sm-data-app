@@ -38,17 +38,6 @@
           "value": "admin.smdataapp.com.ng"
         }
       ]
-    },
-    {
-      "source": "/:path((?!admin).*)",
-      "destination": "/admin/:path",
-      "permanent": false,
-      "has": [
-        {
-          "type": "host",
-          "value": "admin.smdataapp.com.ng"
-        }
-      ]
     }
   ]
 }
