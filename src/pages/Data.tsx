@@ -23,6 +23,7 @@ interface DataService {
   name: string;
   category: string;
   available: boolean;
+  provider?: 'rgc' | 'isquare'; // Track which provider this plan is from
 }
 
 type Step = 'network' | 'category' | 'plan' | 'confirm';
@@ -88,15 +89,46 @@ export default function Data() {
 
   const fetchDataBundles = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('rgc-services', {
-        body: { action: 'get-services', serviceType: 'data' }
-      });
+      // Fetch from both RGC (for non-MTN) and iSquare (for MTN)
+      const [rgcResponse, isquareResponse] = await Promise.all([
+        supabase.functions.invoke('rgc-services', {
+          body: { action: 'get-services', serviceType: 'data' }
+        }),
+        supabase.functions.invoke('isquare-services', {
+          body: { action: 'get-services', serviceType: 'data' }
+        })
+      ]);
 
-      if (error) throw error;
+      let bundles: DataService[] = [];
 
-      if (data.success && data.data) {
-        setAllBundles(data.data.filter((b: DataService) => b.available));
+      // Process RGC bundles (filter out MTN - we'll use iSquare for MTN)
+      if (rgcResponse.data?.success && rgcResponse.data?.data) {
+        const rgcBundles = rgcResponse.data.data
+          .filter((b: DataService) => b.available)
+          .filter((b: DataService) => !b.category.toUpperCase().includes('MTN')) // Exclude MTN from RGC
+          .map((b: DataService) => ({ ...b, provider: 'rgc' as const }));
+        bundles = [...bundles, ...rgcBundles];
       }
+
+      // Process iSquare bundles (MTN only - cheaper rates)
+      if (isquareResponse.data?.success && isquareResponse.data?.data) {
+        const isquareBundles = isquareResponse.data.data
+          .filter((b: DataService) => b.available)
+          .map((b: DataService) => ({ ...b, provider: 'isquare' as const }));
+        bundles = [...bundles, ...isquareBundles];
+      }
+
+      // If iSquare fails, fall back to RGC for MTN
+      if (!isquareResponse.data?.success && rgcResponse.data?.success) {
+        console.log('iSquare unavailable, falling back to RGC for MTN');
+        const rgcMtnBundles = rgcResponse.data.data
+          .filter((b: DataService) => b.available)
+          .filter((b: DataService) => b.category.toUpperCase().includes('MTN'))
+          .map((b: DataService) => ({ ...b, provider: 'rgc' as const }));
+        bundles = [...bundles, ...rgcMtnBundles];
+      }
+
+      setAllBundles(bundles);
     } catch (error: any) {
       console.error('Error fetching data bundles:', error);
       toast({
@@ -121,13 +153,20 @@ export default function Data() {
 
     setPurchasing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('rgc-services', {
+      // Route to appropriate provider based on bundle provider
+      const provider = selectedBundle.provider || 'rgc';
+      const functionName = provider === 'isquare' ? 'isquare-services' : 'rgc-services';
+      
+      console.log(`Purchasing via ${provider} provider`);
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           action: 'purchase',
           serviceType: 'data',
           plan: selectedBundle.id,
-          plan_name: selectedBundle.name, // Send plan name for cashback calculation
+          plan_name: selectedBundle.name,
           mobile_number: phoneNumber,
+          phone_number: phoneNumber, // iSquare uses phone_number
           amount: parseFloat(selectedBundle.amount),
         }
       });
@@ -135,9 +174,8 @@ export default function Data() {
       if (error) throw error;
 
       if (data.success) {
-        // Set transaction data and show receipt
         setLastTransaction({
-          id: data.data?.reference || `TXN-${Date.now()}`,
+          id: data.data?.reference || data.reference || `TXN-${Date.now()}`,
           date: new Date(),
           phoneNumber,
           network: selectedNetwork!.toUpperCase(),
@@ -147,7 +185,6 @@ export default function Data() {
         });
         setShowReceipt(true);
         
-        // Reset form
         setPhoneNumber('');
         setSelectedBundle(null);
         setSelectedCategory(null);
@@ -291,6 +328,7 @@ export default function Data() {
 
                   {networkCategories.map((category) => {
                     const bundleCount = allBundles.filter(b => b.category === category).length;
+                    const isISquare = category.includes('iSquare');
                     return (
                       <button
                         key={category}
@@ -302,7 +340,10 @@ export default function Data() {
                       >
                         <div className="text-left">
                           <p className="font-semibold text-foreground">{getCategoryDisplayName(category)}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{bundleCount} plans available</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {bundleCount} plans available
+                            {isISquare && <span className="ml-2 text-green-600">• Best Price</span>}
+                          </p>
                         </div>
                         <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
                       </button>
@@ -350,6 +391,9 @@ export default function Data() {
                         <p className="text-sm font-semibold text-primary mt-2">
                           {formatPrice(parseFloat(bundle.amount))}
                         </p>
+                        {bundle.provider === 'isquare' && (
+                          <span className="text-xs text-green-600 font-medium">Best Price</span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -383,6 +427,11 @@ export default function Data() {
                       <p className="text-xl font-bold text-primary mt-1">
                         {formatPrice(parseFloat(selectedBundle.amount))}
                       </p>
+                      {selectedBundle.provider === 'isquare' && (
+                        <span className="inline-block mt-2 text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded">
+                          ✓ Best Price via Partner
+                        </span>
+                      )}
                     </div>
                   </div>
 
