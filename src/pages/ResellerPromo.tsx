@@ -1,15 +1,72 @@
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Trophy, Star, Award } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { useEffect, useState } from 'react';
+
+// Import promo images
+import promoIron from '@/assets/promo/promo-iron.jpeg';
+import promoPhone from '@/assets/promo/promo-phone.jpeg';
+import promoBlender from '@/assets/promo/promo-blender.jpeg';
+import promoFan from '@/assets/promo/promo-fan.jpeg';
+import promoRouter from '@/assets/promo/promo-router.jpeg';
+
+const promoImages = [
+  { src: promoIron, alt: 'Win Electric Iron' },
+  { src: promoPhone, alt: 'Win New Phone' },
+  { src: promoBlender, alt: 'Win New Blender' },
+  { src: promoFan, alt: 'Win Solar Fan' },
+  { src: promoRouter, alt: 'Win New Router' },
+];
 
 export default function ResellerPromo() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % promoImages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <MobileLayout>
       <div className="safe-area-top px-4 py-6">
         <h1 className="text-xl font-bold text-foreground mb-2">Reseller Promo</h1>
-        <p className="text-muted-foreground text-sm mb-6">
+        <p className="text-muted-foreground text-sm mb-4">
           Become a top reseller and win amazing rewards!
         </p>
+
+        {/* Sliding Image Carousel */}
+        <div className="relative overflow-hidden rounded-2xl mb-6">
+          <div 
+            className="flex transition-transform duration-700 ease-in-out"
+            style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+          >
+            {promoImages.map((image, index) => (
+              <div key={index} className="w-full flex-shrink-0">
+                <img 
+                  src={image.src} 
+                  alt={image.alt}
+                  className="w-full h-40 object-cover rounded-2xl"
+                />
+              </div>
+            ))}
+          </div>
+          {/* Dots indicator */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {promoImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentIndex(index)}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  index === currentIndex 
+                    ? 'bg-white w-4' 
+                    : 'bg-white/50'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
 
         <Card className="bg-gradient-to-br from-amber-500 to-orange-600 border-0 mb-6">
           <CardContent className="p-6 text-center">
