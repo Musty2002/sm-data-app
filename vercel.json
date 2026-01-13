@@ -16,6 +16,17 @@
           "value": "www.smdataapp.com.ng"
         }
       ]
+    },
+    {
+      "source": "/",
+      "destination": "/admin",
+      "permanent": false,
+      "has": [
+        {
+          "type": "host",
+          "value": "admin.smdataapp.com.ng"
+        }
+      ]
     }
   ]
 }
