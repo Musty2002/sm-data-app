@@ -19,14 +19,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { 
   Search, 
   Loader2, 
   Download,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  RefreshCcw,
+  AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface Transaction {
   id: string;
@@ -47,6 +58,9 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [refunding, setRefunding] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
@@ -87,6 +101,65 @@ export default function TransactionsPage() {
       console.error('Error fetching transactions:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openRefundDialog = (txn: Transaction) => {
+    setSelectedTransaction(txn);
+    setRefundDialogOpen(true);
+  };
+
+  const processRefund = async () => {
+    if (!selectedTransaction) return;
+
+    setRefunding(true);
+    try {
+      // Get user's current wallet balance
+      const { data: wallet, error: walletError } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', selectedTransaction.user_id)
+        .single();
+
+      if (walletError) throw walletError;
+
+      const newBalance = Number(wallet.balance) + Number(selectedTransaction.amount);
+
+      // Update wallet balance
+      const { error: updateError } = await supabase
+        .from('wallets')
+        .update({ balance: newBalance })
+        .eq('user_id', selectedTransaction.user_id);
+
+      if (updateError) throw updateError;
+
+      // Create refund transaction
+      const { error: txnError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: selectedTransaction.user_id,
+          type: 'credit',
+          category: 'deposit' as const,
+          amount: selectedTransaction.amount,
+          status: 'completed' as const,
+          description: `Refund for failed ${selectedTransaction.category} - ${selectedTransaction.reference || selectedTransaction.id.slice(0, 8)}`,
+          reference: `REF-${Date.now()}`
+        });
+
+      if (txnError) throw txnError;
+
+      // Update original transaction status to show it's been refunded
+      // Note: We can't update status directly due to RLS, but we log the refund
+
+      toast.success(`Refund of ₦${Number(selectedTransaction.amount).toLocaleString()} processed successfully`);
+      setRefundDialogOpen(false);
+      setSelectedTransaction(null);
+      fetchTransactions();
+    } catch (error: any) {
+      console.error('Error processing refund:', error);
+      toast.error(error.message || 'Failed to process refund');
+    } finally {
+      setRefunding(false);
     }
   };
 
@@ -131,6 +204,8 @@ export default function TransactionsPage() {
     t.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const failedTransactions = filteredTransactions.filter(t => t.status === 'failed');
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -144,13 +219,32 @@ export default function TransactionsPage() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-          <p className="text-gray-500">View all transaction history</p>
+          <p className="text-gray-500">View all transaction history and process refunds</p>
         </div>
         <Button onClick={exportToCSV} variant="outline">
           <Download className="w-4 h-4 mr-2" />
           Export CSV
         </Button>
       </div>
+
+      {/* Failed Transactions Alert */}
+      {statusFilter === 'all' && failedTransactions.length > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <div>
+                <p className="font-medium text-red-800">
+                  {failedTransactions.length} Failed Transaction{failedTransactions.length > 1 ? 's' : ''} Pending Refund
+                </p>
+                <p className="text-sm text-red-600">
+                  Filter by "Failed" status to review and process refunds
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -206,18 +300,19 @@ export default function TransactionsPage() {
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Reference</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTransactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       No transactions found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredTransactions.map((txn) => (
-                    <TableRow key={txn.id}>
+                    <TableRow key={txn.id} className={txn.status === 'failed' ? 'bg-red-50' : ''}>
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(txn.created_at), 'MMM d, yyyy HH:mm')}
                       </TableCell>
@@ -245,6 +340,19 @@ export default function TransactionsPage() {
                       <TableCell className="font-mono text-xs text-gray-500">
                         {txn.reference || '-'}
                       </TableCell>
+                      <TableCell>
+                        {txn.status === 'failed' && txn.type === 'debit' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                            onClick={() => openRefundDialog(txn)}
+                          >
+                            <RefreshCcw className="w-3 h-3 mr-1" />
+                            Refund
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -253,6 +361,62 @@ export default function TransactionsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Refund Confirmation Dialog */}
+      <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Refund</DialogTitle>
+            <DialogDescription>
+              This will credit the user's wallet with the transaction amount.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedTransaction && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">User:</span>
+                  <span className="font-medium">{selectedTransaction.profiles?.full_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Category:</span>
+                  <span className="capitalize">{selectedTransaction.category}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Amount:</span>
+                  <span className="font-bold text-green-600">₦{Number(selectedTransaction.amount).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Reference:</span>
+                  <span className="font-mono text-xs">{selectedTransaction.reference || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Description:</span>
+                  <span className="text-sm">{selectedTransaction.description}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={processRefund} disabled={refunding}>
+              {refunding ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <RefreshCcw className="w-4 h-4 mr-2" />
+                  Process Refund
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

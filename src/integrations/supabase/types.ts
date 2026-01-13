@@ -104,6 +104,48 @@ export type Database = {
         }
         Relationships: []
       }
+      data_bundles: {
+        Row: {
+          api_price: number
+          app_price: number
+          created_at: string | null
+          data_type: string
+          id: string
+          is_active: boolean | null
+          network_code: string
+          plan_code: string
+          plan_name: string
+          updated_at: string | null
+          validity: string | null
+        }
+        Insert: {
+          api_price?: number
+          app_price?: number
+          created_at?: string | null
+          data_type: string
+          id?: string
+          is_active?: boolean | null
+          network_code: string
+          plan_code: string
+          plan_name: string
+          updated_at?: string | null
+          validity?: string | null
+        }
+        Update: {
+          api_price?: number
+          app_price?: number
+          created_at?: string | null
+          data_type?: string
+          id?: string
+          is_active?: boolean | null
+          network_code?: string
+          plan_code?: string
+          plan_name?: string
+          updated_at?: string | null
+          validity?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
