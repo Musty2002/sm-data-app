@@ -38,11 +38,11 @@ export default function Referral() {
       .eq('referrer_id', profile.id);
 
     if (referrals) {
-      const completed = referrals.filter((r) => r.status === 'bonus_paid');
+      const completed = referrals.filter((r) => r.status === 'completed' || r.status === 'bonus_paid');
       setStats({
         totalReferrals: referrals.length,
         completedReferrals: completed.length,
-        totalEarnings: completed.reduce((sum, r) => sum + Number(r.referrer_bonus), 0),
+        totalEarnings: completed.reduce((sum, r) => sum + Number(r.referrer_bonus || 0), 0),
       });
     }
   };
@@ -97,9 +97,9 @@ export default function Referral() {
         {/* Hero Section */}
         <div className="gradient-primary mx-4 rounded-2xl p-6 text-primary-foreground text-center mb-6">
           <Gift className="w-12 h-12 mx-auto mb-3" />
-          <h2 className="text-xl font-bold mb-2">Earn ₦100 Per Referral</h2>
+          <h2 className="text-xl font-bold mb-2">Earn ₦200 Per Referral</h2>
           <p className="text-sm opacity-90">
-            Invite friends to join SM Data App. When they buy at least 1GB of data, you earn ₦100!
+            Invite friends to join SM Data App. When they buy at least 1GB of data, you earn ₦200 and they get ₦100!
           </p>
         </div>
 
@@ -145,38 +145,17 @@ export default function Referral() {
           </div>
         </div>
 
-        {/* Withdraw to Wallet */}
+        {/* Info Card */}
         <div className="mx-4 mb-6">
           <div className="bg-card rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Available Cashback</p>
+                <p className="text-sm text-muted-foreground">Your Earnings</p>
                 <p className="text-xl font-bold text-foreground">{formatCurrency(stats.totalEarnings)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Credited directly to main wallet</p>
               </div>
               <Wallet className="w-8 h-8 text-primary" />
             </div>
-            <Button 
-              className="w-full" 
-              variant="outline"
-              disabled={stats.totalEarnings <= 0}
-              onClick={() => {
-                if (stats.totalEarnings <= 0) {
-                  toast({
-                    variant: 'destructive',
-                    title: 'No cashback available',
-                    description: 'Refer friends to earn cashback rewards!',
-                  });
-                  return;
-                }
-                toast({
-                  title: 'Withdrawal Request',
-                  description: `Your cashback of ${formatCurrency(stats.totalEarnings)} will be transferred to your main wallet.`,
-                });
-              }}
-            >
-              <Wallet className="w-4 h-4 mr-2" />
-              Withdraw to Main Wallet
-            </Button>
           </div>
         </div>
 
@@ -185,7 +164,7 @@ export default function Referral() {
           <h3 className="font-semibold text-foreground mb-4">How it works</h3>
           <div className="space-y-4">
             <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm font-bold text-secondary-foreground">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
                 1
               </div>
               <div>
@@ -194,7 +173,7 @@ export default function Referral() {
               </div>
             </div>
             <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm font-bold text-secondary-foreground">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
                 2
               </div>
               <div>
@@ -203,12 +182,12 @@ export default function Referral() {
               </div>
             </div>
             <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm font-bold text-secondary-foreground">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
                 3
               </div>
               <div>
-                <p className="font-medium text-foreground">You earn ₦100</p>
-                <p className="text-sm text-muted-foreground">Get ₦100 when your friend buys at least 1GB of data</p>
+                <p className="font-medium text-foreground">Both earn rewards!</p>
+                <p className="text-sm text-muted-foreground">You get ₦200 and your friend gets ₦100 when they buy at least 1GB of data</p>
               </div>
             </div>
           </div>
