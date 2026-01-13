@@ -7,7 +7,8 @@ import {
   Gift,
   BookOpen,
   Coins,
-  ChevronRight
+  ChevronRight,
+  Trophy
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -60,6 +61,13 @@ const services = [
     description: 'Earn ₦200 per referral',
     path: '/referral', 
     color: 'bg-pink-100 text-pink-600' 
+  },
+  { 
+    icon: Trophy, 
+    label: 'Reseller Promo', 
+    description: 'Best reseller rewards',
+    path: '/reseller-promo', 
+    color: 'bg-amber-100 text-amber-600' 
   },
 ];
 
