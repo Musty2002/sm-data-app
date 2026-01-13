@@ -75,7 +75,7 @@ async function purchaseData(planId: number, phoneNumber: string, reference: stri
 
 async function purchaseAirtime(networkId: number, phoneNumber: string, amount: number, reference: string) {
   return await makeISquareRequest('/airtime/buy/', 'POST', {
-    service: networkId,
+    network: networkId,
     phone_number: phoneNumber,
     amount: amount,
     reference,
