@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { ArrowLeft, Lock, Smartphone, Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, Lock, Smartphone, Shield, Eye, EyeOff, Loader2, Fingerprint } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,11 +9,24 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useBiometricAuth } from '@/hooks/useBiometricAuth';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Security() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { 
+    isAvailable, 
+    isEnabled, 
+    biometryName, 
+    isChecking,
+    enableBiometricAuth, 
+    disableBiometricAuth 
+  } = useBiometricAuth();
+  
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
     confirmPassword: '',
@@ -120,6 +133,60 @@ export default function Security() {
             </CardContent>
           </Card>
 
+          {/* Biometric Authentication */}
+          {isAvailable && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Fingerprint className="w-5 h-5 text-primary" />
+                  {biometryName}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Smartphone className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-foreground">Enable {biometryName}</p>
+                      <p className="text-xs text-muted-foreground">Quick login with biometrics</p>
+                    </div>
+                  </div>
+                  <Switch 
+                    checked={isEnabled}
+                    disabled={biometricLoading || isChecking}
+                    onCheckedChange={async (checked) => {
+                      if (!user?.email) {
+                        toast.error('Unable to enable biometrics');
+                        return;
+                      }
+                      setBiometricLoading(true);
+                      try {
+                        if (checked) {
+                          const success = await enableBiometricAuth(user.email);
+                          if (success) {
+                            toast.success(`${biometryName} enabled successfully`);
+                          } else {
+                            toast.error('Failed to enable biometric login');
+                          }
+                        } else {
+                          disableBiometricAuth();
+                          toast.success(`${biometryName} disabled`);
+                        }
+                      } finally {
+                        setBiometricLoading(false);
+                      }
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {isEnabled 
+                    ? `${biometryName} is enabled. You can use it to quickly log in.` 
+                    : `Enable ${biometryName} for faster and more secure login.`}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Security Options */}
           <Card>
             <CardHeader>
@@ -129,16 +196,18 @@ export default function Security() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Smartphone className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium text-foreground">Biometric Login</p>
-                    <p className="text-xs text-muted-foreground">Use fingerprint or face ID</p>
+              {!isAvailable && (
+                <div className="flex items-center justify-between opacity-50">
+                  <div className="flex items-center gap-3">
+                    <Fingerprint className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-foreground">Biometric Login</p>
+                      <p className="text-xs text-muted-foreground">Not available on this device</p>
+                    </div>
                   </div>
+                  <Switch disabled />
                 </div>
-                <Switch />
-              </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
