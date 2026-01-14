@@ -50,11 +50,17 @@ export function useNativeFeatures() {
           document.body.classList.remove('keyboard-open');
         });
 
-        // Setup back button handler
+        // Setup back button handler with improved navigation
         App.addListener('backButton', ({ canGoBack }) => {
-          if (canGoBack) {
+          // Check if we're on a modal or can go back in history
+          const modals = document.querySelectorAll('[role="dialog"], [data-state="open"]');
+          if (modals.length > 0) {
+            // Close the modal by triggering escape key
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          } else if (canGoBack) {
             window.history.back();
           } else {
+            // Show exit confirmation or just exit
             App.exitApp();
           }
         });

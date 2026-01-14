@@ -4,6 +4,9 @@ import { CheckCircle, Share2, X, Phone, Mail, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import logo from '@/assets/sm-data-logo.jpeg';
 
 // Import network logos
@@ -86,12 +89,40 @@ export function TransactionReceipt({ open, onClose, transaction }: TransactionRe
         allowTaint: true,
       });
       
-      // Convert to blob for sharing
+      const base64Data = canvas.toDataURL('image/png').split(',')[1];
+      const fileName = `SM-Data-Receipt-${transactionId}.png`;
+      
+      // Native Android/iOS sharing with file
+      if (Capacitor.getPlatform() !== 'web') {
+        try {
+          // Save to cache directory first
+          const result = await Filesystem.writeFile({
+            path: fileName,
+            data: base64Data,
+            directory: Directory.Cache,
+          });
+          
+          // Share the file using native share
+          await Share.share({
+            title: 'SM Data App - Transaction Receipt',
+            text: `Transaction Receipt - ${transaction.type === 'data' ? transaction.dataPlan : 'Airtime'} for ${transaction.phoneNumber}`,
+            url: result.uri,
+            dialogTitle: 'Share Receipt',
+          });
+          
+          toast.success('Receipt shared successfully!');
+          return;
+        } catch (nativeError) {
+          console.log('Native share failed, trying web fallback:', nativeError);
+        }
+      }
+      
+      // Web fallback - convert to blob for sharing
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((b) => resolve(b!), 'image/png');
       });
       
-      const file = new File([blob], `SM-Data-Receipt-${transactionId}.png`, { type: 'image/png' });
+      const file = new File([blob], fileName, { type: 'image/png' });
       
       // Check if Web Share API supports files
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -128,10 +159,11 @@ ${transaction.type === 'data' && transaction.dataPlan ? `📦 Data Plan: ${trans
           title: 'SM Data App - Transaction Receipt',
           text: receiptText,
         });
+        toast.success('Receipt shared successfully!');
       } else {
         // Fallback: download the image instead
         const link = document.createElement('a');
-        link.download = `SM-Data-Receipt-${transactionId}.png`;
+        link.download = fileName;
         link.href = canvas.toDataURL('image/png');
         link.click();
         toast.success('Receipt saved as image!');
