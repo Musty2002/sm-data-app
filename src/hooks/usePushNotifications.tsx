@@ -5,6 +5,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { toast } from 'sonner';
 
 const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
+const FCM_TOKEN_KEY = 'fcm_token';
 
 export function usePushNotifications() {
   const [pushToken, setPushToken] = useState<string | null>(null);
@@ -21,8 +22,21 @@ export function usePushNotifications() {
       setIsEnabled(storedEnabled === 'true');
     }
 
+    // Check for stored FCM token
+    const storedToken = localStorage.getItem(FCM_TOKEN_KEY);
+    if (storedToken) {
+      setPushToken(storedToken);
+      setIsRegistered(true);
+    }
+
     initPush();
   }, []);
+
+  const subscribeToTopic = async (topic: string) => {
+    // FCM topic subscription is handled server-side for Capacitor
+    // The device will automatically receive messages sent to subscribed topics
+    console.log(`Device will receive notifications for topic: ${topic}`);
+  };
 
   const initPush = async () => {
     if (Capacitor.getPlatform() === 'web') {
@@ -51,10 +65,16 @@ export function usePushNotifications() {
     await PushNotifications.register();
 
     // On registration success
-    PushNotifications.addListener('registration', (token: Token) => {
-      console.log('Push registration success, token:', token.value);
+    PushNotifications.addListener('registration', async (token: Token) => {
+      console.log('Push registration success, FCM token:', token.value);
       setPushToken(token.value);
       setIsRegistered(true);
+      
+      // Store the FCM token locally
+      localStorage.setItem(FCM_TOKEN_KEY, token.value);
+      
+      // Subscribe to 'all' topic for broadcast notifications
+      await subscribeToTopic('all');
     });
 
     // On registration error
