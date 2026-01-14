@@ -111,15 +111,15 @@ export default function NotificationsAdmin() {
 
     setSending(true);
     try {
-      // Create the push notification record
+      // Create the push notification record as draft first
       const { data: notifData, error: notifError } = await supabase
         .from('push_notifications')
         .insert({
           title: formData.title,
           message: formData.message,
           target_audience: formData.target_audience,
-          status: send ? 'sent' : 'draft',
-          sent_at: send ? new Date().toISOString() : null,
+          status: 'draft',
+          sent_at: null,
           created_by: user?.id
         })
         .select()
@@ -128,13 +128,18 @@ export default function NotificationsAdmin() {
       if (notifError) throw notifError;
 
       // If sending, send FCM push notification and create in-app notifications
-      if (send) {
-        // Send FCM push notification (non-blocking)
+      if (send && notifData) {
+        let fcmSuccess = false;
+        
+        // Send FCM push notification
         const fcmResult = await sendFCMNotification(formData.title, formData.message);
-        if (fcmResult?.fcmSkipped || !fcmResult?.success) {
-          console.log('FCM push skipped or failed, continuing with in-app notifications');
-        } else {
+        console.log('FCM result:', fcmResult);
+        
+        if (fcmResult?.fcmSuccess === true) {
+          fcmSuccess = true;
           console.log('FCM push notification sent successfully');
+        } else {
+          console.log('FCM push failed or skipped:', fcmResult?.fcmError || 'Unknown');
         }
 
         // Create in-app notifications for all users
@@ -142,6 +147,7 @@ export default function NotificationsAdmin() {
           .from('profiles')
           .select('user_id');
 
+        let inAppSuccess = false;
         if (profiles && profiles.length > 0) {
           const userNotifications = profiles.map(p => ({
             user_id: p.user_id,
@@ -155,11 +161,35 @@ export default function NotificationsAdmin() {
             .from('notifications')
             .insert(userNotifications);
 
-          if (insertError) throw insertError;
+          if (!insertError) {
+            inAppSuccess = true;
+          } else {
+            console.error('In-app notification error:', insertError);
+          }
         }
+
+        // Update status based on results
+        const finalStatus = (fcmSuccess || inAppSuccess) ? 'sent' : 'failed';
+        await supabase
+          .from('push_notifications')
+          .update({ 
+            status: finalStatus, 
+            sent_at: finalStatus === 'sent' ? new Date().toISOString() : null 
+          })
+          .eq('id', notifData.id);
+
+        if (finalStatus === 'sent') {
+          toast.success(fcmSuccess 
+            ? 'Push notification sent to all users!' 
+            : 'In-app notification sent (push notification failed)'
+          );
+        } else {
+          toast.error('Failed to send notification');
+        }
+      } else {
+        toast.success('Draft saved');
       }
 
-      toast.success(send ? 'Push notification sent to all users!' : 'Draft saved');
       setDialogOpen(false);
       setFormData({ title: '', message: '', target_audience: 'all' });
       fetchNotifications();
@@ -243,6 +273,8 @@ export default function NotificationsAdmin() {
         return <Badge className="bg-gray-100 text-gray-800">Draft</Badge>;
       case 'scheduled':
         return <Badge className="bg-blue-100 text-blue-800">Scheduled</Badge>;
+      case 'failed':
+        return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
