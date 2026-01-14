@@ -1,6 +1,7 @@
 import { ReactNode, createContext, useContext } from 'react';
 import { useNativeFeatures } from '@/hooks/useNativeFeatures';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useKeepAlive } from '@/hooks/useKeepAlive';
 
 interface NativeContextType {
   isNative: boolean;
@@ -28,6 +29,9 @@ const NativeContext = createContext<NativeContextType | null>(null);
 export function NativeProvider({ children }: { children: ReactNode }) {
   const nativeFeatures = useNativeFeatures();
   const pushNotifications = usePushNotifications();
+  
+  // Keep the backend alive to prevent Cloud sleep
+  useKeepAlive();
 
   const value: NativeContextType = {
     ...nativeFeatures,
