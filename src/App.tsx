@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +7,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { NativeProvider } from "@/components/NativeProvider";
 import { SplashScreen } from "@/components/SplashScreen";
+import { LockScreen } from "@/components/auth/LockScreen";
+import { Capacitor } from "@capacitor/core";
+import { supabase } from "@/integrations/supabase/client";
 
 // Pages
 import Index from "./pages/Index";
@@ -56,10 +59,40 @@ import { AdminProvider, useAdmin } from "@/hooks/useAdmin";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+// Session lock state - persists across app lifetime
+const SESSION_UNLOCKED_KEY = 'session_unlocked';
 
-  if (loading) {
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, profile } = useAuth();
+  const [isLocked, setIsLocked] = useState(true);
+  const [checkingLock, setCheckingLock] = useState(true);
+
+  // Check if session was unlocked (in-memory for current app session)
+  useEffect(() => {
+    if (!loading && user) {
+      const sessionUnlocked = sessionStorage.getItem(SESSION_UNLOCKED_KEY);
+      if (sessionUnlocked === 'true') {
+        setIsLocked(false);
+      }
+      setCheckingLock(false);
+    } else if (!loading) {
+      setCheckingLock(false);
+    }
+  }, [loading, user]);
+
+  const handleUnlock = useCallback(() => {
+    sessionStorage.setItem(SESSION_UNLOCKED_KEY, 'true');
+    setIsLocked(false);
+  }, []);
+
+  const handleSwitchAccount = useCallback(() => {
+    sessionStorage.removeItem(SESSION_UNLOCKED_KEY);
+    localStorage.removeItem('last_logged_in_user');
+    localStorage.removeItem('biometric_auth_user');
+    supabase.auth.signOut();
+  }, []);
+
+  if (loading || checkingLock) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-primary">Loading...</div>
@@ -69,6 +102,18 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Show lock screen if session is locked (on native platforms)
+  if (isLocked && Capacitor.isNativePlatform()) {
+    return (
+      <LockScreen
+        userEmail={user.email || ''}
+        userName={profile?.full_name}
+        onUnlock={handleUnlock}
+        onSwitchAccount={handleSwitchAccount}
+      />
+    );
   }
 
   return <>{children}</>;

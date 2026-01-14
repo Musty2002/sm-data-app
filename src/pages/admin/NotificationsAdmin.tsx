@@ -90,14 +90,16 @@ export default function NotificationsAdmin() {
 
       if (error) {
         console.error('FCM error:', error);
-        throw error;
+        // Don't throw - allow in-app notifications to continue
+        return { success: false, error: error.message };
       }
 
       console.log('FCM response:', data);
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send FCM notification:', error);
-      throw error;
+      // Don't throw - allow in-app notifications to continue
+      return { success: false, error: error.message };
     }
   };
 
@@ -127,12 +129,12 @@ export default function NotificationsAdmin() {
 
       // If sending, send FCM push notification and create in-app notifications
       if (send) {
-        // Send FCM push notification
-        try {
-          await sendFCMNotification(formData.title, formData.message);
+        // Send FCM push notification (non-blocking)
+        const fcmResult = await sendFCMNotification(formData.title, formData.message);
+        if (fcmResult?.fcmSkipped || !fcmResult?.success) {
+          console.log('FCM push skipped or failed, continuing with in-app notifications');
+        } else {
           console.log('FCM push notification sent successfully');
-        } catch (fcmError) {
-          console.error('FCM push failed, but continuing with in-app notifications:', fcmError);
         }
 
         // Create in-app notifications for all users
@@ -172,12 +174,12 @@ export default function NotificationsAdmin() {
   const sendNotification = async (notif: PushNotification) => {
     setSending(true);
     try {
-      // Send FCM push notification
-      try {
-        await sendFCMNotification(notif.title, notif.message);
+      // Send FCM push notification (non-blocking)
+      const fcmResult = await sendFCMNotification(notif.title, notif.message);
+      if (fcmResult?.fcmSkipped || !fcmResult?.success) {
+        console.log('FCM push skipped or failed, continuing with in-app notifications');
+      } else {
         console.log('FCM push notification sent successfully');
-      } catch (fcmError) {
-        console.error('FCM push failed, but continuing with in-app notifications:', fcmError);
       }
 
       // Get all user IDs for in-app notifications
