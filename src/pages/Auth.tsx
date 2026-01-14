@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Fingerprint } from 'lucide-react';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
+import { useBiometricAuth } from '@/hooks/useBiometricAuth';
 import logo from '@/assets/sm-data-logo.jpeg';
 
 const signUpSchema = z.object({
@@ -40,6 +41,45 @@ export default function Auth() {
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { 
+    isEnabled: biometricEnabled, 
+    biometryName, 
+    authenticateAndGetUser,
+    isChecking: biometricChecking 
+  } = useBiometricAuth();
+  const [biometricLoading, setBiometricLoading] = useState(false);
+
+  // Auto-trigger biometric auth on mount if enabled
+  useEffect(() => {
+    const attemptBiometricLogin = async () => {
+      if (biometricEnabled && !biometricChecking && isLogin) {
+        handleBiometricLogin();
+      }
+    };
+    
+    attemptBiometricLogin();
+  }, [biometricEnabled, biometricChecking]);
+
+  const handleBiometricLogin = async () => {
+    setBiometricLoading(true);
+    try {
+      const userEmail = await authenticateAndGetUser();
+      
+      if (userEmail) {
+        // For biometric login, we need to have stored credentials
+        // Since we can't store passwords securely, we'll use a session refresh approach
+        toast({
+          title: 'Biometric Verified',
+          description: 'Please enter your password to complete login.',
+        });
+        setFormData(prev => ({ ...prev, identifier: userEmail }));
+      }
+    } catch (error) {
+      console.log('Biometric login cancelled or failed');
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -281,6 +321,20 @@ export default function Auth() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
           </Button>
+
+          {/* Biometric Login Button */}
+          {isLogin && biometricEnabled && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full mt-3 gap-2"
+              onClick={handleBiometricLogin}
+              disabled={biometricLoading}
+            >
+              <Fingerprint className="w-5 h-5" />
+              {biometricLoading ? 'Verifying...' : `Login with ${biometryName}`}
+            </Button>
+          )}
         </form>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
