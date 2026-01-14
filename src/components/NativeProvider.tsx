@@ -16,6 +16,8 @@ interface NativeContextType {
   getAppInfo: () => Promise<any>;
   pushToken: string | null;
   isRegistered: boolean;
+  isNotificationsEnabled: boolean;
+  setNotificationsEnabled: (enabled: boolean) => void;
   sendLocalNotification: (options: { title: string; body: string; id?: number; schedule?: { at: Date } }) => Promise<void>;
   cancelNotification: (id: number) => Promise<void>;
   cancelAllNotifications: () => Promise<void>;
@@ -29,7 +31,13 @@ export function NativeProvider({ children }: { children: ReactNode }) {
 
   const value: NativeContextType = {
     ...nativeFeatures,
-    ...pushNotifications
+    pushToken: pushNotifications.pushToken,
+    isRegistered: pushNotifications.isRegistered,
+    isNotificationsEnabled: pushNotifications.isEnabled,
+    setNotificationsEnabled: pushNotifications.setNotificationsEnabled,
+    sendLocalNotification: pushNotifications.sendLocalNotification,
+    cancelNotification: pushNotifications.cancelNotification,
+    cancelAllNotifications: pushNotifications.cancelAllNotifications
   };
 
   return (
