@@ -17,6 +17,7 @@ interface BiometricState {
 
 const BIOMETRIC_ENABLED_KEY = 'biometric_auth_enabled';
 const BIOMETRIC_USER_KEY = 'biometric_auth_user';
+const LAST_USER_EMAIL_KEY = 'last_logged_in_user';
 
 export function useBiometricAuth() {
   const [biometricState, setBiometricState] = useState<BiometricState>({
@@ -48,7 +49,14 @@ export function useBiometricAuth() {
     try {
       const result: CheckBiometryResult = await BiometricAuth.checkBiometry();
       
-      const isEnabled = localStorage.getItem(BIOMETRIC_ENABLED_KEY) === 'true';
+      // Auto-enable biometric if available and not explicitly disabled
+      const storedEnabled = localStorage.getItem(BIOMETRIC_ENABLED_KEY);
+      const isEnabled = storedEnabled === null ? result.isAvailable : storedEnabled === 'true';
+      
+      // Auto-save the enabled state if it wasn't set before
+      if (storedEnabled === null && result.isAvailable) {
+        localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+      }
       
       setBiometricState({
         isAvailable: result.isAvailable,
@@ -121,6 +129,7 @@ export function useBiometricAuth() {
     if (verified) {
       localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
       localStorage.setItem(BIOMETRIC_USER_KEY, userEmail);
+      localStorage.setItem(LAST_USER_EMAIL_KEY, userEmail);
       setBiometricState(prev => ({ ...prev, isEnabled: true }));
       return true;
     }
@@ -129,13 +138,30 @@ export function useBiometricAuth() {
   }, [biometricState.isAvailable, authenticate]);
 
   const disableBiometricAuth = useCallback(() => {
-    localStorage.removeItem(BIOMETRIC_ENABLED_KEY);
+    localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'false');
     localStorage.removeItem(BIOMETRIC_USER_KEY);
     setBiometricState(prev => ({ ...prev, isEnabled: false }));
   }, []);
 
   const getBiometricUser = useCallback((): string | null => {
     return localStorage.getItem(BIOMETRIC_USER_KEY);
+  }, []);
+
+  const getLastLoggedInUser = useCallback((): string | null => {
+    return localStorage.getItem(LAST_USER_EMAIL_KEY);
+  }, []);
+
+  const setLastLoggedInUser = useCallback((email: string) => {
+    localStorage.setItem(LAST_USER_EMAIL_KEY, email);
+    // Also set as biometric user if biometric is enabled
+    if (biometricState.isEnabled) {
+      localStorage.setItem(BIOMETRIC_USER_KEY, email);
+    }
+  }, [biometricState.isEnabled]);
+
+  const clearLastLoggedInUser = useCallback(() => {
+    localStorage.removeItem(LAST_USER_EMAIL_KEY);
+    localStorage.removeItem(BIOMETRIC_USER_KEY);
   }, []);
 
   const authenticateAndGetUser = useCallback(async (): Promise<string | null> => {
@@ -146,11 +172,11 @@ export function useBiometricAuth() {
     const verified = await authenticate();
     
     if (verified) {
-      return getBiometricUser();
+      return getBiometricUser() || getLastLoggedInUser();
     }
     
     return null;
-  }, [biometricState.isEnabled, authenticate, getBiometricUser]);
+  }, [biometricState.isEnabled, authenticate, getBiometricUser, getLastLoggedInUser]);
 
   return {
     isAvailable: biometricState.isAvailable,
@@ -163,6 +189,9 @@ export function useBiometricAuth() {
     enableBiometricAuth,
     disableBiometricAuth,
     getBiometricUser,
+    getLastLoggedInUser,
+    setLastLoggedInUser,
+    clearLastLoggedInUser,
     authenticateAndGetUser,
     checkBiometryAvailability
   };

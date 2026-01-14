@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Fingerprint } from 'lucide-react';
+import { Eye, EyeOff, Fingerprint, User, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isReturningUser, setIsReturningUser] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
@@ -43,22 +44,37 @@ export default function Auth() {
   const navigate = useNavigate();
   const { 
     isEnabled: biometricEnabled, 
+    isAvailable: biometricAvailable,
     biometryName, 
     authenticateAndGetUser,
+    getLastLoggedInUser,
+    setLastLoggedInUser,
     isChecking: biometricChecking 
   } = useBiometricAuth();
   const [biometricLoading, setBiometricLoading] = useState(false);
 
-  // Auto-trigger biometric auth on mount if enabled
+  // Check for returning user on mount
+  useEffect(() => {
+    const lastUser = getLastLoggedInUser();
+    if (lastUser && isLogin) {
+      setIsReturningUser(true);
+      setFormData(prev => ({ ...prev, identifier: lastUser }));
+    }
+  }, [getLastLoggedInUser, isLogin]);
+
+  // Auto-trigger biometric auth for returning users
   useEffect(() => {
     const attemptBiometricLogin = async () => {
-      if (biometricEnabled && !biometricChecking && isLogin) {
-        handleBiometricLogin();
+      if (biometricEnabled && !biometricChecking && isLogin && isReturningUser) {
+        // Small delay to let UI render first
+        setTimeout(() => {
+          handleBiometricLogin();
+        }, 500);
       }
     };
     
     attemptBiometricLogin();
-  }, [biometricEnabled, biometricChecking]);
+  }, [biometricEnabled, biometricChecking, isReturningUser]);
 
   const handleBiometricLogin = async () => {
     setBiometricLoading(true);
@@ -66,12 +82,11 @@ export default function Auth() {
       const userEmail = await authenticateAndGetUser();
       
       if (userEmail) {
-        // For biometric login, we need to have stored credentials
-        // Since we can't store passwords securely, we'll use a session refresh approach
         toast({
           title: 'Biometric Verified',
-          description: 'Please enter your password to complete login.',
+          description: 'Authentication successful!',
         });
+        // Auto-fill the identifier for password entry
         setFormData(prev => ({ ...prev, identifier: userEmail }));
       }
     } catch (error) {
@@ -79,6 +94,11 @@ export default function Auth() {
     } finally {
       setBiometricLoading(false);
     }
+  };
+
+  const handleSwitchUser = () => {
+    setIsReturningUser(false);
+    setFormData(prev => ({ ...prev, identifier: '', password: '' }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,6 +140,8 @@ export default function Auth() {
               : error.message,
           });
         } else {
+          // Save the user for next time
+          setLastLoggedInUser(formData.identifier);
           navigate('/dashboard');
         }
       } else {
@@ -159,6 +181,8 @@ export default function Auth() {
             });
           }
         } else {
+          // Save the user for next time
+          setLastLoggedInUser(formData.email);
           toast({
             title: 'Welcome!',
             description: 'Your account has been created successfully.',
@@ -177,6 +201,16 @@ export default function Auth() {
     }
   };
 
+  // Extract display name from email for welcome back message
+  const getDisplayName = () => {
+    const email = formData.identifier;
+    if (!email) return '';
+    if (email.includes('@')) {
+      return email.split('@')[0];
+    }
+    return email;
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-background">
       {/* Logo */}
@@ -188,154 +222,227 @@ export default function Auth() {
 
       {/* Form Card */}
       <div className="w-full max-w-sm bg-card rounded-2xl shadow-lg p-6 border border-border">
-        <div className="flex mb-6 bg-muted rounded-lg p-1">
-          <button
-            onClick={() => setIsLogin(true)}
-            className={`flex-1 py-2.5 text-center font-medium rounded-md transition-all ${
-              isLogin ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Login
-          </button>
-          <button
-            onClick={() => setIsLogin(false)}
-            className={`flex-1 py-2.5 text-center font-medium rounded-md transition-all ${
-              !isLogin ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Sign Up
-          </button>
-        </div>
+        {/* Welcome Back View for Returning Users */}
+        {isReturningUser && isLogin ? (
+          <>
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <User className="w-8 h-8 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground">Welcome back!</h2>
+              <p className="text-muted-foreground text-sm mt-1">{formData.identifier}</p>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <>
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  name="fullName"
-                  placeholder="Enter your full name"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  className={errors.fullName ? 'border-destructive' : ''}
-                />
-                {errors.fullName && (
-                  <p className="text-xs text-destructive mt-1">{errors.fullName}</p>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <ForgotPasswordDialog />
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-destructive mt-1">{errors.password}</p>
                 )}
               </div>
 
-              <div>
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  placeholder="08012345678"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className={errors.phone ? 'border-destructive' : ''}
-                />
-                {errors.phone && (
-                  <p className="text-xs text-destructive mt-1">{errors.phone}</p>
-                )}
-              </div>
-            </>
-          )}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Please wait...' : 'Login'}
+              </Button>
 
-          {isLogin ? (
-            <div>
-              <Label htmlFor="identifier">Email or Phone Number</Label>
-              <Input
-                id="identifier"
-                name="identifier"
-                type="text"
-                placeholder="Email or phone number"
-                value={formData.identifier}
-                onChange={handleChange}
-                className={errors.identifier ? 'border-destructive' : ''}
-              />
-              {errors.identifier && (
-                <p className="text-xs text-destructive mt-1">{errors.identifier}</p>
+              {/* Biometric Login Button */}
+              {biometricAvailable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={handleBiometricLogin}
+                  disabled={biometricLoading}
+                >
+                  <Fingerprint className="w-5 h-5" />
+                  {biometricLoading ? 'Verifying...' : `Use ${biometryName}`}
+                </Button>
               )}
-            </div>
-          ) : (
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                className={errors.email ? 'border-destructive' : ''}
-              />
-              {errors.email && (
-                <p className="text-xs text-destructive mt-1">{errors.email}</p>
-              )}
-            </div>
-          )}
+            </form>
 
-          <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              {isLogin && <ForgotPasswordDialog />}
-            </div>
-            <div className="relative">
-              <Input
-                id="password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleChange}
-                className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
-              />
+            <button
+              onClick={handleSwitchUser}
+              className="w-full mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Not {getDisplayName()}? Switch account
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Regular Login/Signup View */}
+            <div className="flex mb-6 bg-muted rounded-lg p-1">
               <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setIsLogin(true)}
+                className={`flex-1 py-2.5 text-center font-medium rounded-md transition-all ${
+                  isLogin ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                Login
+              </button>
+              <button
+                onClick={() => setIsLogin(false)}
+                className={`flex-1 py-2.5 text-center font-medium rounded-md transition-all ${
+                  !isLogin ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Sign Up
               </button>
             </div>
-            {errors.password && (
-              <p className="text-xs text-destructive mt-1">{errors.password}</p>
-            )}
-          </div>
 
-          {!isLogin && (
-            <div>
-              <Label htmlFor="referralCode">Referral Code (Optional)</Label>
-              <Input
-                id="referralCode"
-                name="referralCode"
-                placeholder="Enter referral code"
-                value={formData.referralCode}
-                onChange={handleChange}
-              />
-            </div>
-          )}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!isLogin && (
+                <>
+                  <div>
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      name="fullName"
+                      placeholder="Enter your full name"
+                      value={formData.fullName}
+                      onChange={handleChange}
+                      className={errors.fullName ? 'border-destructive' : ''}
+                    />
+                    {errors.fullName && (
+                      <p className="text-xs text-destructive mt-1">{errors.fullName}</p>
+                    )}
+                  </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
-          </Button>
+                  <div>
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="08012345678"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className={errors.phone ? 'border-destructive' : ''}
+                    />
+                    {errors.phone && (
+                      <p className="text-xs text-destructive mt-1">{errors.phone}</p>
+                    )}
+                  </div>
+                </>
+              )}
 
-          {/* Biometric Login Button */}
-          {isLogin && biometricEnabled && (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mt-3 gap-2"
-              onClick={handleBiometricLogin}
-              disabled={biometricLoading}
-            >
-              <Fingerprint className="w-5 h-5" />
-              {biometricLoading ? 'Verifying...' : `Login with ${biometryName}`}
-            </Button>
-          )}
-        </form>
+              {isLogin ? (
+                <div>
+                  <Label htmlFor="identifier">Email or Phone Number</Label>
+                  <Input
+                    id="identifier"
+                    name="identifier"
+                    type="text"
+                    placeholder="Email or phone number"
+                    value={formData.identifier}
+                    onChange={handleChange}
+                    className={errors.identifier ? 'border-destructive' : ''}
+                  />
+                  {errors.identifier && (
+                    <p className="text-xs text-destructive mt-1">{errors.identifier}</p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className={errors.email ? 'border-destructive' : ''}
+                  />
+                  {errors.email && (
+                    <p className="text-xs text-destructive mt-1">{errors.email}</p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  {isLogin && <ForgotPasswordDialog />}
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-destructive mt-1">{errors.password}</p>
+                )}
+              </div>
+
+              {!isLogin && (
+                <div>
+                  <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+                  <Input
+                    id="referralCode"
+                    name="referralCode"
+                    placeholder="Enter referral code"
+                    value={formData.referralCode}
+                    onChange={handleChange}
+                  />
+                </div>
+              )}
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
+              </Button>
+
+              {/* Biometric Login Button for first-time login */}
+              {isLogin && biometricAvailable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={handleBiometricLogin}
+                  disabled={biometricLoading}
+                >
+                  <Fingerprint className="w-5 h-5" />
+                  {biometricLoading ? 'Verifying...' : `Login with ${biometryName}`}
+                </Button>
+              )}
+            </form>
+          </>
+        )}
 
         <p className="text-center text-xs text-muted-foreground mt-6">
           By continuing, you agree to our Terms of Service and Privacy Policy
