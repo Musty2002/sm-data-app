@@ -82,6 +82,25 @@ export default function NotificationsAdmin() {
     }
   };
 
+  const sendFCMNotification = async (title: string, message: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-push-notification', {
+        body: { title, message, topic: 'all' }
+      });
+
+      if (error) {
+        console.error('FCM error:', error);
+        throw error;
+      }
+
+      console.log('FCM response:', data);
+      return data;
+    } catch (error) {
+      console.error('Failed to send FCM notification:', error);
+      throw error;
+    }
+  };
+
   const createNotification = async (send: boolean = false) => {
     if (!formData.title || !formData.message) {
       toast.error('Please fill in all fields');
@@ -106,8 +125,17 @@ export default function NotificationsAdmin() {
 
       if (notifError) throw notifError;
 
-      // If sending, create notifications for all users
+      // If sending, send FCM push notification and create in-app notifications
       if (send) {
+        // Send FCM push notification
+        try {
+          await sendFCMNotification(formData.title, formData.message);
+          console.log('FCM push notification sent successfully');
+        } catch (fcmError) {
+          console.error('FCM push failed, but continuing with in-app notifications:', fcmError);
+        }
+
+        // Create in-app notifications for all users
         const { data: profiles } = await supabase
           .from('profiles')
           .select('user_id');
@@ -129,7 +157,7 @@ export default function NotificationsAdmin() {
         }
       }
 
-      toast.success(send ? 'Notification sent to all users!' : 'Draft saved');
+      toast.success(send ? 'Push notification sent to all users!' : 'Draft saved');
       setDialogOpen(false);
       setFormData({ title: '', message: '', target_audience: 'all' });
       fetchNotifications();
@@ -144,7 +172,15 @@ export default function NotificationsAdmin() {
   const sendNotification = async (notif: PushNotification) => {
     setSending(true);
     try {
-      // Get all user IDs
+      // Send FCM push notification
+      try {
+        await sendFCMNotification(notif.title, notif.message);
+        console.log('FCM push notification sent successfully');
+      } catch (fcmError) {
+        console.error('FCM push failed, but continuing with in-app notifications:', fcmError);
+      }
+
+      // Get all user IDs for in-app notifications
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id');
@@ -171,7 +207,7 @@ export default function NotificationsAdmin() {
         .update({ status: 'sent', sent_at: new Date().toISOString() })
         .eq('id', notif.id);
 
-      toast.success('Notification sent to all users!');
+      toast.success('Push notification sent to all users!');
       fetchNotifications();
     } catch (error) {
       console.error('Error sending notification:', error);
