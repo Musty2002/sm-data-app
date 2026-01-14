@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { NativeProvider } from "@/components/NativeProvider";
+import { SplashScreen } from "@/components/SplashScreen";
 
 // Pages
 import Index from "./pages/Index";
@@ -326,29 +328,41 @@ function AdminRoutes() {
   );
 }
 
+function AppWithSplash() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} minDuration={2000} />;
+  }
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Admin routes - completely separate */}
+        <Route path="/admin/*" element={
+          <AdminProvider>
+            <AdminRoutes />
+          </AdminProvider>
+        } />
+        
+        {/* Main app routes */}
+        <Route path="/*" element={
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        } />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <NativeProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Admin routes - completely separate */}
-            <Route path="/admin/*" element={
-              <AdminProvider>
-                <AdminRoutes />
-              </AdminProvider>
-            } />
-            
-            {/* Main app routes */}
-            <Route path="/*" element={
-              <AuthProvider>
-                <AppRoutes />
-              </AuthProvider>
-            } />
-          </Routes>
-        </BrowserRouter>
+        <AppWithSplash />
       </TooltipProvider>
     </NativeProvider>
   </QueryClientProvider>
