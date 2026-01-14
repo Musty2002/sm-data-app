@@ -14,25 +14,126 @@ interface PushNotificationRequest {
   data?: Record<string, string>;
 }
 
-// Helper function to safely parse FCM response
-async function parseFCMResponse(response: Response): Promise<{ ok: boolean; data?: any; error?: string }> {
-  const text = await response.text();
+// Generate JWT for Google OAuth2
+async function createJWT(clientEmail: string, privateKey: string): Promise<string> {
+  const header = { alg: "RS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: clientEmail,
+    sub: clientEmail,
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+  };
+
+  const encode = (obj: object) => {
+    const json = JSON.stringify(obj);
+    const bytes = new TextEncoder().encode(json);
+    return btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  };
+
+  const headerB64 = encode(header);
+  const payloadB64 = encode(payload);
+  const unsignedToken = `${headerB64}.${payloadB64}`;
+
+  // Import private key and sign
+  const pemContents = privateKey
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s/g, "");
   
-  // Check if response is HTML (error page)
-  if (text.trim().startsWith('<')) {
-    console.error("FCM returned HTML instead of JSON. The legacy API may be deprecated.");
-    return { 
-      ok: false, 
-      error: "FCM legacy API is deprecated. Please use FCM v1 API with service account." 
-    };
+  const binaryKey = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryKey,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+
+  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  return `${unsignedToken}.${signatureB64}`;
+}
+
+// Get OAuth2 access token
+async function getAccessToken(clientEmail: string, privateKey: string): Promise<string> {
+  const jwt = await createJWT(clientEmail, privateKey);
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("OAuth2 token error:", errorText);
+    throw new Error(`Failed to get access token: ${response.status}`);
   }
-  
+
+  const data = await response.json();
+  return data.access_token;
+}
+
+// Send notification via FCM v1 API
+async function sendFCMv1(
+  projectId: string,
+  accessToken: string,
+  message: {
+    topic?: string;
+    token?: string;
+    notification: { title: string; body: string };
+    data?: Record<string, string>;
+    android?: object;
+    apns?: object;
+  }
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  const url = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
+
   try {
-    const data = JSON.parse(text);
-    return { ok: response.ok, data };
-  } catch (e) {
-    console.error("Failed to parse FCM response:", text.substring(0, 200));
-    return { ok: false, error: "Invalid response from FCM" };
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message }),
+    });
+
+    const text = await response.text();
+    
+    if (!response.ok) {
+      console.error("FCM v1 error:", text);
+      return { success: false, error: text };
+    }
+
+    try {
+      const data = JSON.parse(text);
+      return { success: true, data };
+    } catch {
+      return { success: true, data: text };
+    }
+  } catch (error: any) {
+    console.error("FCM v1 request failed:", error);
+    return { success: false, error: error.message };
   }
 }
 
@@ -43,9 +144,11 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const firebaseServerKey = Deno.env.get("FIREBASE_SERVER_KEY");
-    
-    console.log("Firebase Server Key configured:", !!firebaseServerKey);
+    const projectId = Deno.env.get("FIREBASE_PROJECT_ID");
+    const clientEmail = Deno.env.get("FIREBASE_CLIENT_EMAIL");
+    const privateKey = Deno.env.get("FIREBASE_PRIVATE_KEY");
+
+    console.log("FCM v1 config - Project ID:", !!projectId, "Client Email:", !!clientEmail, "Private Key:", !!privateKey);
 
     // Parse request body
     let body;
@@ -55,10 +158,7 @@ serve(async (req: Request): Promise<Response> => {
       console.error("Failed to parse request body:", e);
       return new Response(
         JSON.stringify({ success: false, error: "Invalid JSON body" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -67,108 +167,118 @@ serve(async (req: Request): Promise<Response> => {
     if (!title || !message) {
       return new Response(
         JSON.stringify({ success: false, error: "Title and message are required" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
     console.log(`Processing push notification: ${title}`);
 
-    // If no Firebase key, skip FCM but return success for in-app notifications
-    if (!firebaseServerKey) {
-      console.log("FCM not configured, skipping push notification");
+    // If FCM v1 is not configured, skip but return success for in-app notifications
+    if (!projectId || !clientEmail || !privateKey) {
+      console.log("FCM v1 not fully configured, skipping push notification");
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: "In-app notification will be created (FCM not configured)",
-          fcmSkipped: true
+          fcmSkipped: true,
         }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Build FCM message payload
-    const fcmPayload: any = {
+    // Get OAuth2 access token
+    let accessToken: string;
+    try {
+      // Handle escaped newlines in private key (common when stored as env var)
+      const formattedPrivateKey = privateKey.replace(/\\n/g, "\n");
+      accessToken = await getAccessToken(clientEmail, formattedPrivateKey);
+      console.log("Successfully obtained OAuth2 access token");
+    } catch (error: any) {
+      console.error("Failed to get access token:", error);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "In-app notification will be created (FCM auth failed)",
+          fcmSuccess: false,
+          fcmError: error.message,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Build FCM v1 message
+    const fcmMessage: any = {
       notification: {
         title,
         body: message,
-        sound: "default",
       },
-      data: {
-        ...data,
-        title,
-        message,
-        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      data: data || {},
+      android: {
+        notification: {
+          sound: "default",
+          channel_id: "default",
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: "default",
+            badge: 1,
+          },
+        },
       },
     };
 
-    let fcmResult: { ok: boolean; data?: any; error?: string } = { ok: false };
+    let results: any[] = [];
 
-    // Try to send via FCM
-    try {
-      const targetTopic = topic || "all";
-      console.log(`Attempting to send to topic: ${targetTopic}`);
+    // Send to specific tokens
+    if (tokens && tokens.length > 0) {
+      console.log(`Sending to ${tokens.length} device tokens`);
       
-      const response = await fetch("https://fcm.googleapis.com/fcm/send", {
-        method: "POST",
-        headers: {
-          "Authorization": `key=${firebaseServerKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...fcmPayload,
-          to: `/topics/${targetTopic}`,
-        }),
-      });
-
-      fcmResult = await parseFCMResponse(response);
-      
-      if (fcmResult.ok && fcmResult.data) {
-        console.log("FCM success:", fcmResult.data);
-      } else {
-        console.log("FCM failed:", fcmResult.error || "Unknown error");
+      for (const token of tokens) {
+        const result = await sendFCMv1(projectId, accessToken, {
+          ...fcmMessage,
+          token,
+        });
+        results.push({ token: token.substring(0, 20) + "...", ...result });
       }
-    } catch (fcmError: any) {
-      console.error("FCM request failed:", fcmError.message);
-      fcmResult = { ok: false, error: fcmError.message };
+    }
+    // Send to a topic
+    else {
+      const targetTopic = topic || "all";
+      console.log(`Sending to topic: ${targetTopic}`);
+      
+      const result = await sendFCMv1(projectId, accessToken, {
+        ...fcmMessage,
+        topic: targetTopic,
+      });
+      results.push(result);
     }
 
-    // Always return success - in-app notifications are handled separately by the frontend
-    // FCM is just an optional push notification enhancement
+    const allSuccess = results.every((r) => r.success);
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: fcmResult.ok 
-          ? "Push notification sent successfully" 
-          : "In-app notification will be created (FCM unavailable)",
-        fcmSuccess: fcmResult.ok,
-        fcmError: fcmResult.error || null,
-        fcmData: fcmResult.data || null
+      JSON.stringify({
+        success: true,
+        message: allSuccess
+          ? "Push notification sent successfully via FCM v1"
+          : "Push notification partially sent",
+        fcmSuccess: allSuccess,
+        fcmVersion: "v1",
+        results,
       }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
     console.error("Error in push notification handler:", error);
-    // Still return success for in-app notification flow
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: "In-app notification will be created (push failed)",
         fcmSuccess: false,
-        fcmError: error.message 
+        fcmError: error.message,
       }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 });
