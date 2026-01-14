@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdmin } from '@/hooks/useAdmin';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +53,7 @@ interface PushNotification {
 
 export default function NotificationsAdmin() {
   const { user } = useAdmin();
+  const { sendLocalNotification } = usePushNotifications();
   const [notifications, setNotifications] = useState<PushNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -82,26 +84,6 @@ export default function NotificationsAdmin() {
     }
   };
 
-  const sendFCMNotification = async (title: string, message: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('send-push-notification', {
-        body: { title, message, topic: 'all' }
-      });
-
-      if (error) {
-        console.error('FCM error:', error);
-        // Don't throw - allow in-app notifications to continue
-        return { success: false, error: error.message };
-      }
-
-      console.log('FCM response:', data);
-      return data;
-    } catch (error: any) {
-      console.error('Failed to send FCM notification:', error);
-      // Don't throw - allow in-app notifications to continue
-      return { success: false, error: error.message };
-    }
-  };
 
   const createNotification = async (send: boolean = false) => {
     if (!formData.title || !formData.message) {
@@ -127,69 +109,33 @@ export default function NotificationsAdmin() {
 
       if (notifError) throw notifError;
 
-      // If sending, send FCM push notification and create in-app notifications
+      // If sending, send as LOCAL notification (this device only)
       if (send && notifData) {
-        let fcmSuccess = false;
-        
-        // Send FCM push notification
-        const fcmResult = await sendFCMNotification(formData.title, formData.message);
-        console.log('FCM result:', fcmResult);
-        
-        if (fcmResult?.fcmSuccess === true) {
-          fcmSuccess = true;
-          console.log('FCM push notification sent successfully');
-        } else {
-          console.log('FCM push failed or skipped:', fcmResult?.fcmError || 'Unknown');
+        let localSuccess = false;
+        try {
+          await sendLocalNotification({ title: formData.title, body: formData.message });
+          localSuccess = true;
+        } catch (e) {
+          console.error('Local notification error:', e);
         }
 
-        // Create in-app notifications for all users
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id');
-
-        let inAppSuccess = false;
-        if (profiles && profiles.length > 0) {
-          const userNotifications = profiles.map(p => ({
-            user_id: p.user_id,
-            title: formData.title,
-            message: formData.message,
-            type: 'info',
-            is_read: false
-          }));
-
-          const { error: insertError } = await supabase
-            .from('notifications')
-            .insert(userNotifications);
-
-          if (!insertError) {
-            inAppSuccess = true;
-          } else {
-            console.error('In-app notification error:', insertError);
-          }
-        }
-
-        // Update status based on results
-        const finalStatus = (fcmSuccess || inAppSuccess) ? 'sent' : 'failed';
+        const finalStatus = localSuccess ? 'local_sent' : 'failed';
         await supabase
           .from('push_notifications')
-          .update({ 
-            status: finalStatus, 
-            sent_at: finalStatus === 'sent' ? new Date().toISOString() : null 
+          .update({
+            status: finalStatus,
+            sent_at: localSuccess ? new Date().toISOString() : null,
           })
           .eq('id', notifData.id);
 
-        if (finalStatus === 'sent') {
-          toast.success(fcmSuccess 
-            ? 'Push notification sent to all users!' 
-            : 'In-app notification sent (push notification failed)'
-          );
+        if (localSuccess) {
+          toast.success('Local notification sent on this device');
         } else {
-          toast.error('Failed to send notification');
+          toast.error('Failed to send local notification');
         }
       } else {
         toast.success('Draft saved');
       }
-
       setDialogOpen(false);
       setFormData({ title: '', message: '', target_audience: 'all' });
       fetchNotifications();
@@ -204,42 +150,28 @@ export default function NotificationsAdmin() {
   const sendNotification = async (notif: PushNotification) => {
     setSending(true);
     try {
-      // Send FCM push notification (non-blocking)
-      const fcmResult = await sendFCMNotification(notif.title, notif.message);
-      if (fcmResult?.fcmSkipped || !fcmResult?.success) {
-        console.log('FCM push skipped or failed, continuing with in-app notifications');
-      } else {
-        console.log('FCM push notification sent successfully');
+      let localSuccess = false;
+      try {
+        await sendLocalNotification({ title: notif.title, body: notif.message });
+        localSuccess = true;
+      } catch (e) {
+        console.error('Local notification error:', e);
       }
 
-      // Get all user IDs for in-app notifications
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id');
-
-      if (profiles && profiles.length > 0) {
-        const userNotifications = profiles.map(p => ({
-          user_id: p.user_id,
-          title: notif.title,
-          message: notif.message,
-          type: 'info',
-          is_read: false
-        }));
-
-        const { error: insertError } = await supabase
-          .from('notifications')
-          .insert(userNotifications);
-
-        if (insertError) throw insertError;
-      }
-
-      // Update status
       await supabase
         .from('push_notifications')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .update({
+          status: localSuccess ? 'local_sent' : 'failed',
+          sent_at: localSuccess ? new Date().toISOString() : null,
+        })
         .eq('id', notif.id);
 
-      toast.success('Push notification sent to all users!');
+      if (localSuccess) {
+        toast.success('Local notification sent on this device');
+      } else {
+        toast.error('Failed to send local notification');
+      }
+
       fetchNotifications();
     } catch (error) {
       console.error('Error sending notification:', error);
@@ -267,6 +199,8 @@ export default function NotificationsAdmin() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'local_sent':
+        return <Badge className="bg-green-100 text-green-800">Local Sent</Badge>;
       case 'sent':
         return <Badge className="bg-green-100 text-green-800">Sent</Badge>;
       case 'draft':
@@ -292,8 +226,8 @@ export default function NotificationsAdmin() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Push Notifications</h1>
-          <p className="text-gray-500">Send notifications to app users</p>
+          <h1 className="text-2xl font-bold text-gray-900">Local Notifications</h1>
+          <p className="text-gray-500">Send a notification on this device (web shows a toast; native shows a local notification)</p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
@@ -373,7 +307,7 @@ export default function NotificationsAdmin() {
           <DialogHeader>
             <DialogTitle>Create Notification</DialogTitle>
             <DialogDescription>
-              Send a notification to all app users
+              Send a notification on this device only
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -424,7 +358,7 @@ export default function NotificationsAdmin() {
               ) : (
                 <>
                   <Send className="w-4 h-4 mr-2" />
-                  Send Now
+                  Send to this device
                 </>
               )}
             </Button>
