@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.d2cb55103dc048eab38dd0717d79ec9f',
+  appId: 'com.smdata.app',
   appName: 'SM Data App',
   webDir: 'dist',
   server: {
