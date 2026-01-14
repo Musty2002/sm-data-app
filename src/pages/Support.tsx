@@ -45,19 +45,19 @@ const contactOptions = [
     icon: MessageCircle,
     label: 'Live Chat',
     description: 'Chat with our support team',
-    action: () => window.open('https://wa.me/2348012345678', '_blank'),
+    action: () => window.open('https://wa.me/2349078920178', '_blank'),
   },
   {
     icon: Phone,
     label: 'Call Us',
-    description: '+234 801 234 5678',
-    action: () => window.open('tel:+2348012345678', '_blank'),
+    description: '0907 892 0178',
+    action: () => window.open('tel:+2349078920178', '_blank'),
   },
   {
     icon: Mail,
     label: 'Email Support',
-    description: 'support@smdata.com.ng',
-    action: () => window.open('mailto:support@smdata.com.ng', '_blank'),
+    description: 'smdataapp@gmail.com',
+    action: () => window.open('mailto:smdataapp@gmail.com', '_blank'),
   },
 ];
 

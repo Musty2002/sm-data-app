@@ -22,19 +22,55 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     const firebaseServerKey = Deno.env.get("FIREBASE_SERVER_KEY");
+    
+    // Log for debugging
+    console.log("Firebase Server Key configured:", !!firebaseServerKey);
+    console.log("Firebase Server Key length:", firebaseServerKey?.length || 0);
+
     if (!firebaseServerKey) {
       console.error("FIREBASE_SERVER_KEY not configured");
-      throw new Error("Firebase server key not configured");
+      // Return success anyway - in-app notifications will still work
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "FCM not configured, but in-app notifications will work",
+          fcmSkipped: true
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { title, message, tokens, topic, data }: PushNotificationRequest = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error("Failed to parse request body:", e);
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid JSON body" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    const { title, message, tokens, topic, data }: PushNotificationRequest = body;
 
     if (!title || !message) {
-      throw new Error("Title and message are required");
+      return new Response(
+        JSON.stringify({ success: false, error: "Title and message are required" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
     }
 
     console.log(`Sending push notification: ${title}`);
