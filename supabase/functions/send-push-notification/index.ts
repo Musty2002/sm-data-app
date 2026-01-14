@@ -41,16 +41,36 @@ async function createJWT(clientEmail: string, privateKey: string): Promise<strin
   const unsignedToken = `${headerB64}.${payloadB64}`;
 
   // Import private key and sign
-  const pemContents = privateKey
+  // Handle various formats of private key (escaped newlines, actual newlines, etc.)
+  let cleanKey = privateKey
+    .replace(/\\n/g, "\n") // Convert escaped \n to actual newlines
     .replace(/-----BEGIN PRIVATE KEY-----/g, "")
     .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/\s/g, "");
+    .replace(/[\n\r\s]/g, ""); // Remove all whitespace including newlines
   
-  const binaryKey = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+  console.log("Private key length after cleaning:", cleanKey.length);
+  
+  // Decode base64 using a safer method
+  let binaryKey: Uint8Array;
+  try {
+    // Use standard base64 decoding
+    const binaryString = atob(cleanKey);
+    binaryKey = Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
+  } catch (base64Error) {
+    console.error("Base64 decode error, trying URL-safe decode:", base64Error);
+    // Try URL-safe base64 (replace - with + and _ with /)
+    cleanKey = cleanKey.replace(/-/g, "+").replace(/_/g, "/");
+    // Add padding if needed
+    while (cleanKey.length % 4 !== 0) {
+      cleanKey += "=";
+    }
+    const binaryString = atob(cleanKey);
+    binaryKey = Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
+  }
 
   const cryptoKey = await crypto.subtle.importKey(
     "pkcs8",
-    binaryKey,
+    binaryKey.buffer as ArrayBuffer,
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"]
