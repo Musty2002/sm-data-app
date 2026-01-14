@@ -4,10 +4,12 @@ const config: CapacitorConfig = {
   appId: 'com.smdata.app',
   appName: 'SM Data App',
   webDir: 'dist',
-  server: {
-    url: 'https://d2cb5510-3dc0-48ea-b38d-d0717d79ec9f.lovableproject.com?forceHideBadge=true',
-    cleartext: true
-  },
+  // Remove server.url to run standalone from bundled assets
+  // Uncomment below for live reload during development:
+  // server: {
+  //   url: 'https://d2cb5510-3dc0-48ea-b38d-d0717d79ec9f.lovableproject.com?forceHideBadge=true',
+  //   cleartext: true
+  // },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
