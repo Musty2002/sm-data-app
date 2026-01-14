@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { NativeProvider } from "@/components/NativeProvider";
 
 // Pages
 import Index from "./pages/Index";
@@ -327,27 +328,29 @@ function AdminRoutes() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Admin routes - completely separate */}
-          <Route path="/admin/*" element={
-            <AdminProvider>
-              <AdminRoutes />
-            </AdminProvider>
-          } />
-          
-          {/* Main app routes */}
-          <Route path="/*" element={
-            <AuthProvider>
-              <AppRoutes />
-            </AuthProvider>
-          } />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <NativeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Admin routes - completely separate */}
+            <Route path="/admin/*" element={
+              <AdminProvider>
+                <AdminRoutes />
+              </AdminProvider>
+            } />
+            
+            {/* Main app routes */}
+            <Route path="/*" element={
+              <AuthProvider>
+                <AppRoutes />
+              </AuthProvider>
+            } />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </NativeProvider>
   </QueryClientProvider>
 );
 
