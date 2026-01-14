@@ -41,15 +41,36 @@ async function createJWT(clientEmail: string, privateKey: string): Promise<strin
   const unsignedToken = `${headerB64}.${payloadB64}`;
 
   // Import private key and sign
-  // Handle various formats of private key (escaped newlines, actual newlines, etc.)
-  let cleanKey = privateKey
-    .replace(/\\n/g, "\n") // Convert escaped \n to actual newlines
+  // Accept either: raw PEM, PEM with escaped newlines, or full service-account JSON.
+  let keySource = (privateKey ?? "").trim();
+
+  // If the whole service-account JSON was pasted, extract the private_key field
+  if (keySource.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(keySource);
+      if (typeof parsed?.private_key === "string") keySource = parsed.private_key;
+    } catch {
+      // ignore JSON parse errors and treat as raw key
+    }
+  }
+
+  // Convert escaped newlines to real newlines then strip PEM armor + whitespace
+  keySource = keySource.replace(/\\n/g, "\n");
+
+  let cleanKey = keySource
     .replace(/-----BEGIN PRIVATE KEY-----/g, "")
     .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/[\n\r\s]/g, ""); // Remove all whitespace including newlines
-  
+    .replace(/[\n\r\s]/g, "");
+
+  // Remove any stray characters like quotes/commas that make base64 decoding fail
+  const invalidChars = cleanKey.match(/[^A-Za-z0-9+/=_-]/g);
+  if (invalidChars?.length) {
+    console.warn(`Private key contained ${invalidChars.length} non-base64 characters; stripping.`);
+    cleanKey = cleanKey.replace(/[^A-Za-z0-9+/=_-]/g, "");
+  }
+
   console.log("Private key length after cleaning:", cleanKey.length);
-  
+
   // Decode base64 using a safer method
   let binaryKey: Uint8Array;
   try {
@@ -210,7 +231,19 @@ serve(async (req: Request): Promise<Response> => {
     let accessToken: string;
     try {
       // Handle escaped newlines in private key (common when stored as env var)
-      const formattedPrivateKey = privateKey.replace(/\\n/g, "\n");
+      // Also handle the case where the whole service-account JSON was pasted.
+      let formattedPrivateKey = privateKey;
+      try {
+        const trimmed = formattedPrivateKey.trim();
+        if (trimmed.startsWith("{")) {
+          const parsed = JSON.parse(trimmed);
+          if (typeof parsed?.private_key === "string") formattedPrivateKey = parsed.private_key;
+        }
+      } catch {
+        // ignore
+      }
+      formattedPrivateKey = formattedPrivateKey.replace(/\\n/g, "\n");
+
       accessToken = await getAccessToken(clientEmail, formattedPrivateKey);
       console.log("Successfully obtained OAuth2 access token");
     } catch (error: any) {
