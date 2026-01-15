@@ -146,6 +146,45 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_logs: {
+        Row: {
+          body: string
+          data: Json | null
+          failure_count: number
+          id: string
+          sent_at: string
+          sent_by: string | null
+          sent_count: number
+          success_count: number
+          target_type: string
+          title: string
+        }
+        Insert: {
+          body: string
+          data?: Json | null
+          failure_count?: number
+          id?: string
+          sent_at?: string
+          sent_by?: string | null
+          sent_count?: number
+          success_count?: number
+          target_type?: string
+          title: string
+        }
+        Update: {
+          body?: string
+          data?: Json | null
+          failure_count?: number
+          id?: string
+          sent_at?: string
+          sent_by?: string | null
+          sent_count?: number
+          success_count?: number
+          target_type?: string
+          title?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -334,6 +373,39 @@ export type Database = {
           target_audience?: string | null
           target_users?: string[] | null
           title?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string | null
+          created_at: string
+          device_info: Json | null
+          endpoint: string
+          id: string
+          p256dh: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          auth?: string | null
+          created_at?: string
+          device_info?: Json | null
+          endpoint: string
+          id?: string
+          p256dh?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          auth?: string | null
+          created_at?: string
+          device_info?: Json | null
+          endpoint?: string
+          id?: string
+          p256dh?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }

@@ -1,370 +1,394 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAdmin } from '@/hooks/useAdmin';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { 
-  Bell, 
-  Plus, 
-  Loader2,
-  Send,
-  Trash2
-} from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Bell, Send, Loader2, Trash2, RefreshCw, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
-interface PushNotification {
+interface NotificationLog {
   id: string;
   title: string;
-  message: string;
-  target_audience: string;
-  status: string;
+  body: string;
+  target_type: string;
+  sent_count: number;
+  success_count: number;
+  failure_count: number;
+  sent_at: string;
+}
+
+interface PushSubscription {
+  id: string;
+  endpoint: string;
+  user_id: string | null;
   created_at: string;
-  sent_at: string | null;
 }
 
 export default function NotificationsAdmin() {
-  const { user } = useAdmin();
-  const { sendLocalNotification } = usePushNotifications();
-  const [notifications, setNotifications] = useState<PushNotification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    message: '',
-    target_audience: 'all'
-  });
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [logs, setLogs] = useState<NotificationLog[]>([]);
+  const [subscriptions, setSubscriptions] = useState<PushSubscription[]>([]);
+  const [sendResults, setSendResults] = useState<{ success: number; failed: number } | null>(null);
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const fetchNotifications = async () => {
+  // Fetch notification logs and subscriptions
+  const fetchData = async () => {
+    setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('push_notifications')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [logsResult, subsResult] = await Promise.all([
+        supabase
+          .from('notification_logs' as any)
+          .select('*')
+          .order('sent_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('push_subscriptions' as any)
+          .select('*')
+          .order('created_at', { ascending: false }),
+      ]);
 
-      if (error) throw error;
-      setNotifications(data || []);
+      if (logsResult.error) {
+        console.error('Error fetching logs:', logsResult.error);
+      } else {
+        setLogs((logsResult.data as unknown as NotificationLog[]) || []);
+      }
+
+      if (subsResult.error) {
+        console.error('Error fetching subscriptions:', subsResult.error);
+      } else {
+        setSubscriptions((subsResult.data as unknown as PushSubscription[]) || []);
+      }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('Error fetching data:', error);
+      toast.error('Failed to load data');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const createNotification = async (send: boolean = false) => {
-    if (!formData.title || !formData.message) {
-      toast.error('Please fill in all fields');
+  // Send notification to all subscribers
+  const handleSendToAll = async () => {
+    if (!title.trim() || !body.trim()) {
+      toast.error('Please enter both title and message');
       return;
     }
 
-    setSending(true);
+    if (subscriptions.length === 0) {
+      toast.error('No push subscriptions found');
+      return;
+    }
+
+    setIsSending(true);
+    setSendResults(null);
+
+    let successCount = 0;
+    let failureCount = 0;
+    const unregisteredTokens: string[] = [];
+
     try {
-      // Create the push notification record as draft first
-      const { data: notifData, error: notifError } = await supabase
-        .from('push_notifications')
-        .insert({
-          title: formData.title,
-          message: formData.message,
-          target_audience: formData.target_audience,
-          status: 'draft',
-          sent_at: null,
-          created_by: user?.id
-        })
-        .select()
-        .single();
+      // Get current user for logging
+      const { data: { user } } = await supabase.auth.getUser();
 
-      if (notifError) throw notifError;
-
-      // If sending, send as LOCAL notification (this device only)
-      if (send && notifData) {
-        let localSuccess = false;
+      // Send to each subscriber
+      for (const sub of subscriptions) {
         try {
-          await sendLocalNotification({ title: formData.title, body: formData.message });
-          localSuccess = true;
-        } catch (e) {
-          console.error('Local notification error:', e);
+          const { data, error } = await supabase.functions.invoke('send-push-notification', {
+            body: {
+              token: sub.endpoint,
+              title: title.trim(),
+              body: body.trim(),
+            },
+          });
+
+          if (error) {
+            console.error(`Failed to send to ${sub.id}:`, error);
+            failureCount++;
+          } else if (data?.success) {
+            successCount++;
+          } else {
+            failureCount++;
+            // Check for UNREGISTERED tokens
+            if (data?.errorCode === 'UNREGISTERED' || data?.errorCode === 'NOT_FOUND') {
+              unregisteredTokens.push(sub.id);
+            }
+          }
+        } catch (sendError) {
+          console.error(`Error sending to ${sub.id}:`, sendError);
+          failureCount++;
         }
+      }
 
-        const finalStatus = localSuccess ? 'local_sent' : 'failed';
-        await supabase
-          .from('push_notifications')
-          .update({
-            status: finalStatus,
-            sent_at: localSuccess ? new Date().toISOString() : null,
-          })
-          .eq('id', notifData.id);
+      // Delete unregistered tokens
+      if (unregisteredTokens.length > 0) {
+        console.log(`Deleting ${unregisteredTokens.length} unregistered tokens`);
+        const { error: deleteError } = await supabase
+          .from('push_subscriptions' as any)
+          .delete()
+          .in('id', unregisteredTokens);
 
-        if (localSuccess) {
-          toast.success('Local notification sent on this device');
+        if (deleteError) {
+          console.error('Failed to delete unregistered tokens:', deleteError);
         } else {
-          toast.error('Failed to send local notification');
+          toast.info(`Removed ${unregisteredTokens.length} invalid subscriptions`);
         }
-      } else {
-        toast.success('Draft saved');
       }
-      setDialogOpen(false);
-      setFormData({ title: '', message: '', target_audience: 'all' });
-      fetchNotifications();
+
+      // Log the notification
+      const { error: logError } = await supabase
+        .from('notification_logs' as any)
+        .insert({
+          title: title.trim(),
+          body: body.trim(),
+          target_type: 'all',
+          sent_count: subscriptions.length,
+          success_count: successCount,
+          failure_count: failureCount,
+          sent_by: user?.id,
+        });
+
+      if (logError) {
+        console.error('Failed to log notification:', logError);
+      }
+
+      setSendResults({ success: successCount, failed: failureCount });
+
+      if (successCount > 0) {
+        toast.success(`Sent to ${successCount} devices`);
+      }
+      if (failureCount > 0) {
+        toast.warning(`Failed to send to ${failureCount} devices`);
+      }
+
+      // Clear form and refresh data
+      setTitle('');
+      setBody('');
+      fetchData();
+
     } catch (error) {
-      console.error('Error creating notification:', error);
-      toast.error('Failed to create notification');
+      console.error('Error sending notifications:', error);
+      toast.error('Failed to send notifications');
     } finally {
-      setSending(false);
+      setIsSending(false);
     }
   };
 
-  const sendNotification = async (notif: PushNotification) => {
-    setSending(true);
-    try {
-      let localSuccess = false;
-      try {
-        await sendLocalNotification({ title: notif.title, body: notif.message });
-        localSuccess = true;
-      } catch (e) {
-        console.error('Local notification error:', e);
-      }
-
-      await supabase
-        .from('push_notifications')
-        .update({
-          status: localSuccess ? 'local_sent' : 'failed',
-          sent_at: localSuccess ? new Date().toISOString() : null,
-        })
-        .eq('id', notif.id);
-
-      if (localSuccess) {
-        toast.success('Local notification sent on this device');
-      } else {
-        toast.error('Failed to send local notification');
-      }
-
-      fetchNotifications();
-    } catch (error) {
-      console.error('Error sending notification:', error);
-      toast.error('Failed to send notification');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const deleteNotification = async (id: string) => {
+  // Delete a subscription
+  const handleDeleteSubscription = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('push_notifications')
+        .from('push_subscriptions' as any)
         .delete()
         .eq('id', id);
 
       if (error) throw error;
-      toast.success('Notification deleted');
-      fetchNotifications();
+      toast.success('Subscription deleted');
+      fetchData();
     } catch (error) {
-      console.error('Error deleting notification:', error);
-      toast.error('Failed to delete notification');
+      console.error('Error deleting subscription:', error);
+      toast.error('Failed to delete subscription');
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'local_sent':
-        return <Badge className="bg-green-100 text-green-800">Local Sent</Badge>;
-      case 'sent':
-        return <Badge className="bg-green-100 text-green-800">Sent</Badge>;
-      case 'draft':
-        return <Badge className="bg-gray-100 text-gray-800">Draft</Badge>;
-      case 'scheduled':
-        return <Badge className="bg-blue-100 text-blue-800">Scheduled</Badge>;
-      case 'failed':
-        return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Local Notifications</h1>
-          <p className="text-gray-500">Send a notification on this device (web shows a toast; native shows a local notification)</p>
+          <h1 className="text-2xl font-bold">Push Notifications</h1>
+          <p className="text-muted-foreground">Send push notifications to app users</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          New Notification
+        <Button variant="outline" onClick={fetchData}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
         </Button>
       </div>
 
+      {/* Compose Notification */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bell className="w-5 h-5" />
-            Notification History
+            <Bell className="h-5 w-5" />
+            Compose Notification
           </CardTitle>
+          <CardDescription>
+            Send a push notification to all {subscriptions.length} registered devices
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-2 block">Title</label>
+            <Input
+              placeholder="Notification title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={100}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Message</label>
+            <Textarea
+              placeholder="Notification message"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={3}
+              maxLength={500}
+            />
+          </div>
+
+          {sendResults && (
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-sm">
+                <span className="text-green-600 font-medium">{sendResults.success} successful</span>
+                {' • '}
+                <span className="text-red-600 font-medium">{sendResults.failed} failed</span>
+              </p>
+            </div>
+          )}
+
+          <Button
+            onClick={handleSendToAll}
+            disabled={isSending || !title.trim() || !body.trim() || subscriptions.length === 0}
+            className="w-full"
+          >
+            {isSending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Send to All ({subscriptions.length} devices)
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Registered Devices */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Registered Devices
+          </CardTitle>
+          <CardDescription>
+            {subscriptions.length} device{subscriptions.length !== 1 ? 's' : ''} registered for push notifications
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {subscriptions.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              No devices registered yet. Users need to open the app on their mobile device.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Token (truncated)</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Registered</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {subscriptions.map((sub) => (
+                  <TableRow key={sub.id}>
+                    <TableCell className="font-mono text-xs">
+                      {sub.endpoint.substring(0, 30)}...
+                    </TableCell>
+                    <TableCell>
+                      {sub.user_id ? (
+                        <Badge variant="secondary">Logged in</Badge>
+                      ) : (
+                        <Badge variant="outline">Anonymous</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {format(new Date(sub.created_at), 'MMM d, yyyy')}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteSubscription(sub.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Notification History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Notification History</CardTitle>
+          <CardDescription>Recent notifications sent from this dashboard</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {logs.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              No notifications sent yet
+            </p>
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Message</TableHead>
-                  <TableHead>Audience</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Results</TableHead>
+                  <TableHead>Sent At</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {notifications.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                      No notifications yet
+                {logs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="font-medium">{log.title}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{log.body}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Badge variant="default" className="bg-green-600">
+                          {log.success_count} ✓
+                        </Badge>
+                        {log.failure_count > 0 && (
+                          <Badge variant="destructive">
+                            {log.failure_count} ✗
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {format(new Date(log.sent_at), 'MMM d, HH:mm')}
                     </TableCell>
                   </TableRow>
-                ) : (
-                  notifications.map((notif) => (
-                    <TableRow key={notif.id}>
-                      <TableCell className="font-medium">{notif.title}</TableCell>
-                      <TableCell className="max-w-xs truncate">{notif.message}</TableCell>
-                      <TableCell className="capitalize">{notif.target_audience}</TableCell>
-                      <TableCell>{getStatusBadge(notif.status)}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {format(new Date(notif.created_at), 'MMM d, yyyy HH:mm')}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {notif.status === 'draft' && (
-                            <Button
-                              size="sm"
-                              onClick={() => sendNotification(notif)}
-                              disabled={sending}
-                            >
-                              <Send className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => deleteNotification(notif.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ))}
               </TableBody>
             </Table>
-          </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* Create Notification Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create Notification</DialogTitle>
-            <DialogDescription>
-              Send a notification on this device only
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                id="title"
-                placeholder="Notification title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="message">Message</Label>
-              <Textarea
-                id="message"
-                placeholder="Notification message"
-                value={formData.message}
-                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                rows={4}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="audience">Target Audience</Label>
-              <Select
-                value={formData.target_audience}
-                onValueChange={(v) => setFormData({ ...formData, target_audience: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Users</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => createNotification(false)} disabled={sending}>
-              Save as Draft
-            </Button>
-            <Button onClick={() => createNotification(true)} disabled={sending}>
-              {sending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4 mr-2" />
-                  Send to this device
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
