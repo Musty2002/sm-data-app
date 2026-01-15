@@ -102,7 +102,7 @@ export default function NotificationsAdmin() {
       // Send to each subscriber
       for (const sub of subscriptions) {
         try {
-          const { data, error } = await supabase.functions.invoke('send-push-notification', {
+          const response = await supabase.functions.invoke('send-push-notification', {
             body: {
               token: sub.endpoint,
               title: title.trim(),
@@ -110,21 +110,35 @@ export default function NotificationsAdmin() {
             },
           });
 
-          if (error) {
-            console.error(`Failed to send to ${sub.id}:`, error);
-            failureCount++;
-          } else if (data?.success) {
+          // Handle response - both error responses and success
+          const data = response.data;
+          const error = response.error;
+
+          if (data?.success) {
             successCount++;
           } else {
             failureCount++;
-            // Check for UNREGISTERED tokens
-            if (data?.errorCode === 'UNREGISTERED' || data?.errorCode === 'NOT_FOUND') {
+            // Check for UNREGISTERED tokens - these need cleanup
+            const errorCode = data?.errorCode || '';
+            if (errorCode === 'UNREGISTERED' || errorCode === 'NOT_FOUND') {
+              console.log(`Token ${sub.id} is unregistered, marking for deletion`);
               unregisteredTokens.push(sub.id);
+            } else if (error) {
+              console.error(`Failed to send to ${sub.id}:`, error.message);
             }
           }
-        } catch (sendError) {
+        } catch (sendError: any) {
           console.error(`Error sending to ${sub.id}:`, sendError);
           failureCount++;
+          // Try to parse error context for UNREGISTERED status
+          try {
+            const errorData = sendError?.context?.data || sendError?.data;
+            if (errorData?.errorCode === 'UNREGISTERED' || errorData?.errorCode === 'NOT_FOUND') {
+              unregisteredTokens.push(sub.id);
+            }
+          } catch {
+            // Ignore parse errors
+          }
         }
       }
 
