@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { ArrowLeft, Lock, Smartphone, Shield, Eye, EyeOff, Loader2, Fingerprint } from 'lucide-react';
+import { ArrowLeft, Lock, Smartphone, Shield, Eye, EyeOff, Loader2, Fingerprint, KeyRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useBiometricAuth } from '@/hooks/useBiometricAuth';
 import { useAuth } from '@/hooks/useAuth';
+import { PinSetupDialog, isPinSetup, clearStoredPin } from '@/components/auth/PinSetupDialog';
 
 export default function Security() {
   const navigate = useNavigate();
@@ -31,6 +32,13 @@ export default function Security() {
     newPassword: '',
     confirmPassword: '',
   });
+  const [pinSetupOpen, setPinSetupOpen] = useState(false);
+  const [hasPinSetup, setHasPinSetup] = useState(isPinSetup());
+
+  // Check PIN status on mount
+  useEffect(() => {
+    setHasPinSetup(isPinSetup());
+  }, [pinSetupOpen]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +69,12 @@ export default function Security() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResetPin = () => {
+    clearStoredPin();
+    setHasPinSetup(false);
+    setPinSetupOpen(true);
   };
 
   return (
@@ -130,6 +144,43 @@ export default function Security() {
                   )}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          {/* App Lock PIN */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <KeyRound className="w-5 h-5 text-primary" />
+                App Lock PIN
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Lock className="w-5 h-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium text-foreground">6-Digit Passcode</p>
+                    <p className="text-xs text-muted-foreground">
+                      {hasPinSetup ? 'PIN is set up' : 'Required to secure your app'}
+                    </p>
+                  </div>
+                </div>
+                {hasPinSetup ? (
+                  <Button variant="outline" size="sm" onClick={handleResetPin}>
+                    Change
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => setPinSetupOpen(true)}>
+                    Set Up
+                  </Button>
+                )}
+              </div>
+              {!hasPinSetup && (
+                <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
+                  ⚠️ Please set up your PIN to secure your account when returning to the app.
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -221,6 +272,15 @@ export default function Security() {
               </div>
             </CardContent>
           </Card>
+
+          <PinSetupDialog 
+            open={pinSetupOpen} 
+            onOpenChange={setPinSetupOpen}
+            onComplete={() => {
+              setHasPinSetup(true);
+              toast.success('PIN set up successfully!');
+            }}
+          />
 
           {/* Active Sessions */}
           <Card>

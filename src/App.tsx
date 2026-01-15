@@ -8,8 +8,10 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { NativeProvider } from "@/components/NativeProvider";
 import { SplashScreen } from "@/components/SplashScreen";
 import { LockScreen } from "@/components/auth/LockScreen";
+import { PinSetupDialog, isPinSetup } from "@/components/auth/PinSetupDialog";
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 // Pages
 import Index from "./pages/Index";
@@ -66,6 +68,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, profile } = useAuth();
   const [isLocked, setIsLocked] = useState(true);
   const [checkingLock, setCheckingLock] = useState(true);
+  const [showPinSetup, setShowPinSetup] = useState(false);
+  const [pinSetupDismissed, setPinSetupDismissed] = useState(false);
 
   // Check if session was unlocked (in-memory for current app session)
   useEffect(() => {
@@ -79,6 +83,20 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       setCheckingLock(false);
     }
   }, [loading, user]);
+
+  // Check if user needs to set up PIN (after unlock, on native platforms)
+  useEffect(() => {
+    if (!isLocked && user && Capacitor.isNativePlatform() && !pinSetupDismissed) {
+      const hasPinSetup = isPinSetup();
+      if (!hasPinSetup) {
+        // Delay to let the dashboard render first
+        const timer = setTimeout(() => {
+          setShowPinSetup(true);
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isLocked, user, pinSetupDismissed]);
 
   const handleUnlock = useCallback(() => {
     sessionStorage.setItem(SESSION_UNLOCKED_KEY, 'true');
@@ -116,7 +134,21 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <PinSetupDialog
+        open={showPinSetup}
+        onOpenChange={(open) => {
+          setShowPinSetup(open);
+          if (!open) setPinSetupDismissed(true);
+        }}
+        onComplete={() => {
+          toast.success('PIN set up successfully! Your app is now secure.');
+        }}
+      />
+    </>
+  );
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {

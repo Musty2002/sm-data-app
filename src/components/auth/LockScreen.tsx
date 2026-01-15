@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Fingerprint, Delete, ArrowRight, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useBiometricAuth } from '@/hooks/useBiometricAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import logo from '@/assets/sm-data-logo.jpeg';
+import { isPinSetup, verifyStoredPin } from './PinSetupDialog';
 
 interface LockScreenProps {
   userEmail: string;
@@ -28,6 +27,7 @@ export function LockScreen({ userEmail, userName, onUnlock, onSwitchAccount }: L
   } = useBiometricAuth();
 
   const biometricTriggered = useRef(false);
+  const hasPinSetup = isPinSetup();
 
   // Auto-trigger biometric on mount
   useEffect(() => {
@@ -67,17 +67,28 @@ export function LockScreen({ userEmail, userName, onUnlock, onSwitchAccount }: L
   const verifyPin = async (pinCode: string) => {
     setLoading(true);
     try {
-      // Use the PIN as password for re-authentication
-      const { error } = await supabase.auth.signInWithPassword({
-        email: userEmail,
-        password: pinCode,
-      });
-
-      if (error) {
-        setError('Incorrect passcode');
-        setPin('');
+      // First check if PIN is set up locally
+      if (hasPinSetup) {
+        const isValid = await verifyStoredPin(pinCode);
+        if (isValid) {
+          onUnlock();
+        } else {
+          setError('Incorrect passcode');
+          setPin('');
+        }
       } else {
-        onUnlock();
+        // Fallback: Use the PIN as password for re-authentication (legacy)
+        const { error } = await supabase.auth.signInWithPassword({
+          email: userEmail,
+          password: pinCode,
+        });
+
+        if (error) {
+          setError('Incorrect passcode');
+          setPin('');
+        } else {
+          onUnlock();
+        }
       }
     } catch (err) {
       setError('Verification failed');
@@ -111,6 +122,56 @@ export function LockScreen({ userEmail, userName, onUnlock, onSwitchAccount }: L
   };
 
   const pinDigits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+  // If no PIN is set up and no biometrics, just unlock (will prompt to set up PIN after)
+  useEffect(() => {
+    if (!hasPinSetup && !biometricAvailable) {
+      // No security set up yet, unlock and let the app prompt for setup
+      onUnlock();
+    }
+  }, [hasPinSetup, biometricAvailable, onUnlock]);
+
+  // If no PIN setup but biometrics available, show only biometric option
+  if (!hasPinSetup && biometricAvailable) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-background">
+        {/* Avatar */}
+        <div className="mb-4">
+          <div className="w-20 h-20 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
+            <span className="text-2xl font-bold text-primary-foreground">{getInitials()}</span>
+          </div>
+        </div>
+
+        {/* User badge */}
+        <div className="mb-4 px-3 py-1 bg-muted rounded-full">
+          <span className="text-sm text-muted-foreground">@ {getMaskedEmail()}</span>
+        </div>
+
+        {/* Title */}
+        <h1 className="text-2xl font-bold text-foreground mb-2">Welcome back!</h1>
+        <p className="text-muted-foreground text-sm mb-8">Use biometrics to continue</p>
+
+        {/* Biometric Button */}
+        <button
+          onClick={handleBiometricAuth}
+          disabled={loading}
+          className="w-20 h-20 rounded-full bg-primary hover:bg-primary/90 flex items-center justify-center transition-all active:scale-95 mb-6"
+        >
+          <Fingerprint className="w-10 h-10 text-primary-foreground" />
+        </button>
+        <p className="text-sm text-muted-foreground mb-8">Tap to use {biometryName}</p>
+
+        {/* Switch Account */}
+        <button
+          onClick={onSwitchAccount}
+          className="mt-4 flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground"
+        >
+          <User className="w-4 h-4" />
+          Switch account
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-background">
