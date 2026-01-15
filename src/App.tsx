@@ -374,7 +374,13 @@ function AdminRoutes() {
 }
 
 function AppWithSplash() {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    // Only show splash on main app routes (not admin or website routes)
+    const path = window.location.pathname;
+    const isWebsiteRoute = path.startsWith('/web') || path === '/website';
+    const isAdminRoute = path.startsWith('/admin');
+    return !isWebsiteRoute && !isAdminRoute;
+  });
 
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} minDuration={2000} />;
