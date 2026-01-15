@@ -57,7 +57,20 @@ export function usePushNotifications() {
 
   // Initialize push notifications
   const initPush = useCallback(async () => {
-    if (!Capacitor.isNativePlatform() || initRef.current || isInitializing) {
+    console.log('[PushNotifications] initPush called', {
+      isNative: Capacitor.isNativePlatform(),
+      platform: Capacitor.getPlatform(),
+      initRefCurrent: initRef.current,
+      isInitializing
+    });
+
+    if (!Capacitor.isNativePlatform()) {
+      console.log('[PushNotifications] Not a native platform, skipping');
+      return;
+    }
+    
+    if (initRef.current || isInitializing) {
+      console.log('[PushNotifications] Already initialized or initializing, skipping');
       return;
     }
 
@@ -65,8 +78,10 @@ export function usePushNotifications() {
     setIsInitializing(true);
 
     try {
+      console.log('[PushNotifications] Importing Capacitor plugins...');
       const { PushNotifications } = await import('@capacitor/push-notifications');
       const { LocalNotifications } = await import('@capacitor/local-notifications');
+      console.log('[PushNotifications] Plugins imported successfully');
 
       // Create default notification channel for Android
       if (Capacitor.getPlatform() === 'android') {
@@ -93,34 +108,42 @@ export function usePushNotifications() {
       }
 
       // Request push notification permission
+      console.log('[PushNotifications] Checking push permissions...');
       let permStatus = await PushNotifications.checkPermissions();
+      console.log('[PushNotifications] Current permission status:', permStatus);
+      
       if (permStatus.receive === 'prompt') {
+        console.log('[PushNotifications] Requesting push permissions...');
         permStatus = await PushNotifications.requestPermissions();
+        console.log('[PushNotifications] Permission result:', permStatus);
       }
 
       if (permStatus.receive !== 'granted') {
-        console.log('Push notification permission denied');
+        console.log('[PushNotifications] Push notification permission denied');
         setIsInitializing(false);
         return;
       }
 
       // Remove existing listeners
+      console.log('[PushNotifications] Removing existing listeners...');
       await PushNotifications.removeAllListeners();
 
       // On registration success
       await PushNotifications.addListener('registration', async (token) => {
-        console.log('Push registration success, FCM token:', token.value);
+        console.log('[PushNotifications] Registration success, FCM token:', token.value);
         setPushToken(token.value);
         setIsRegistered(true);
         localStorage.setItem(FCM_TOKEN_KEY, token.value);
         
         // Save to database
+        console.log('[PushNotifications] Saving token to database...');
         await saveTokenToDatabase(token.value);
+        console.log('[PushNotifications] Token saved to database');
       });
 
       // On registration error
       await PushNotifications.addListener('registrationError', (error) => {
-        console.error('Push registration error:', error);
+        console.error('[PushNotifications] Registration error:', JSON.stringify(error));
         setIsInitializing(false);
       });
 
@@ -159,11 +182,12 @@ export function usePushNotifications() {
       });
 
       // Register for push notifications
+      console.log('[PushNotifications] Calling PushNotifications.register()...');
       await PushNotifications.register();
-      console.log('Push notifications registered');
+      console.log('[PushNotifications] PushNotifications.register() completed - waiting for registration callback');
 
     } catch (error) {
-      console.error('Failed to initialize push notifications:', error);
+      console.error('[PushNotifications] Failed to initialize:', error);
     } finally {
       setIsInitializing(false);
     }
@@ -171,15 +195,22 @@ export function usePushNotifications() {
 
   // Initialize on mount
   useEffect(() => {
+    console.log('[PushNotifications] Mount effect running', {
+      isNative: Capacitor.isNativePlatform(),
+      platform: Capacitor.getPlatform()
+    });
+    
     // Check for stored token
     const storedToken = localStorage.getItem(FCM_TOKEN_KEY);
     if (storedToken) {
+      console.log('[PushNotifications] Found stored token:', storedToken.substring(0, 20) + '...');
       setPushToken(storedToken);
       setIsRegistered(true);
     }
 
     // Only initialize on native platforms
     if (Capacitor.isNativePlatform()) {
+      console.log('[PushNotifications] Initializing on native platform...');
       initPush();
     }
   }, [initPush]);
