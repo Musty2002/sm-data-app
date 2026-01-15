@@ -1,17 +1,20 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
-const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
 const FCM_TOKEN_KEY = 'fcm_token';
+const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
 
 export function usePushNotifications() {
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [isRegistered, setIsRegistered] = useState(false);
   const [isEnabled, setIsEnabled] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const initRef = useRef(false);
 
+  // Load enabled state from storage
   useEffect(() => {
-    // Auto-enable notifications by default
     const storedEnabled = localStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
     if (storedEnabled === null) {
       localStorage.setItem(NOTIFICATIONS_ENABLED_KEY, 'true');
@@ -19,53 +22,89 @@ export function usePushNotifications() {
     } else {
       setIsEnabled(storedEnabled === 'true');
     }
+  }, []);
 
-    // Check for stored FCM token
-    const storedToken = localStorage.getItem(FCM_TOKEN_KEY);
-    if (storedToken) {
-      setPushToken(storedToken);
-      setIsRegistered(true);
-    }
+  // Save token to database
+  const saveTokenToDatabase = useCallback(async (token: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Use raw query to upsert since the types may not be updated yet
+      const { error } = await supabase
+        .from('push_subscriptions' as any)
+        .upsert(
+          {
+            endpoint: token,
+            user_id: user?.id || null,
+            device_info: {
+              platform: Capacitor.getPlatform(),
+              isNative: Capacitor.isNativePlatform(),
+            },
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'endpoint' }
+        );
 
-    // Only initialize push on native platforms
-    if (Capacitor.isNativePlatform()) {
-      initPush();
+      if (error) {
+        console.error('Failed to save push token to database:', error);
+      } else {
+        console.log('Push token saved to database');
+      }
+    } catch (err) {
+      console.error('Error saving token to database:', err);
     }
   }, []);
 
-  const subscribeToTopic = async (topic: string) => {
-    console.log(`Device will receive notifications for topic: ${topic}`);
-  };
+  // Initialize push notifications
+  const initPush = useCallback(async () => {
+    if (!Capacitor.isNativePlatform() || initRef.current || isInitializing) {
+      return;
+    }
 
-  const initPush = async () => {
+    initRef.current = true;
+    setIsInitializing(true);
+
     try {
-      // Dynamically import to avoid crashes on web
       const { PushNotifications } = await import('@capacitor/push-notifications');
       const { LocalNotifications } = await import('@capacitor/local-notifications');
 
-      // Request local notification permission
-      try {
-        const localPermStatus = await LocalNotifications.checkPermissions();
-        if (localPermStatus.display !== 'granted') {
-          await LocalNotifications.requestPermissions();
+      // Create default notification channel for Android
+      if (Capacitor.getPlatform() === 'android') {
+        try {
+          await LocalNotifications.createChannel({
+            id: 'default',
+            name: 'Default Notifications',
+            description: 'Default notification channel',
+            importance: 5,
+            visibility: 1,
+            sound: 'default',
+            vibration: true,
+          });
+          console.log('Android notification channel created');
+        } catch (channelError) {
+          console.warn('Failed to create notification channel:', channelError);
         }
-      } catch (localError) {
-        console.warn('Local notifications not available:', localError);
+      }
+
+      // Request local notification permission
+      const localPermStatus = await LocalNotifications.checkPermissions();
+      if (localPermStatus.display !== 'granted') {
+        await LocalNotifications.requestPermissions();
       }
 
       // Request push notification permission
       let permStatus = await PushNotifications.checkPermissions();
-
       if (permStatus.receive === 'prompt') {
         permStatus = await PushNotifications.requestPermissions();
       }
 
       if (permStatus.receive !== 'granted') {
         console.log('Push notification permission denied');
+        setIsInitializing(false);
         return;
       }
 
-      // Remove any existing listeners before adding new ones
+      // Remove existing listeners
       await PushNotifications.removeAllListeners();
 
       // On registration success
@@ -74,23 +113,43 @@ export function usePushNotifications() {
         setPushToken(token.value);
         setIsRegistered(true);
         localStorage.setItem(FCM_TOKEN_KEY, token.value);
-        await subscribeToTopic('all');
+        
+        // Save to database
+        await saveTokenToDatabase(token.value);
       });
 
       // On registration error
       await PushNotifications.addListener('registrationError', (error) => {
         console.error('Push registration error:', error);
+        setIsInitializing(false);
       });
 
-      // Handle push notification received while app is in foreground
-      await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('Push received:', notification);
-        toast.info(notification.title || 'New notification', {
-          description: notification.body
-        });
+      // Handle push notification received in foreground
+      await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+        console.log('Push received in foreground:', notification);
+        
+        // Show local notification
+        try {
+          await LocalNotifications.schedule({
+            notifications: [{
+              title: notification.title || 'Notification',
+              body: notification.body || '',
+              id: Math.floor(Math.random() * 100000),
+              schedule: { at: new Date(Date.now() + 100) },
+              sound: 'default',
+              channelId: 'default',
+              extra: notification.data,
+            }],
+          });
+        } catch (localError) {
+          console.warn('Failed to show local notification:', localError);
+          toast.info(notification.title || 'New notification', {
+            description: notification.body,
+          });
+        }
       });
 
-      // Handle push notification action (user tapped on notification)
+      // Handle push notification action (user tapped)
       await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
         console.log('Push action performed:', notification);
         const data = notification.notification.data;
@@ -99,13 +158,31 @@ export function usePushNotifications() {
         }
       });
 
-      // Register for push notifications AFTER listeners are set up
+      // Register for push notifications
       await PushNotifications.register();
+      console.log('Push notifications registered');
 
     } catch (error) {
       console.error('Failed to initialize push notifications:', error);
+    } finally {
+      setIsInitializing(false);
     }
-  };
+  }, [saveTokenToDatabase, isInitializing]);
+
+  // Initialize on mount
+  useEffect(() => {
+    // Check for stored token
+    const storedToken = localStorage.getItem(FCM_TOKEN_KEY);
+    if (storedToken) {
+      setPushToken(storedToken);
+      setIsRegistered(true);
+    }
+
+    // Only initialize on native platforms
+    if (Capacitor.isNativePlatform()) {
+      initPush();
+    }
+  }, [initPush]);
 
   // Enable/disable notifications
   const setNotificationsEnabled = useCallback((enabled: boolean) => {
@@ -113,12 +190,21 @@ export function usePushNotifications() {
     setIsEnabled(enabled);
   }, []);
 
-  // Send local notification
+  // Re-register when user logs in
+  const registerForPush = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) {
+      initRef.current = false;
+      await initPush();
+    }
+  }, [initPush]);
+
+  // Send local notification (for testing or in-app use)
   const sendLocalNotification = useCallback(async (options: {
     title: string;
     body: string;
     id?: number;
     schedule?: { at: Date };
+    data?: Record<string, unknown>;
   }) => {
     if (!isEnabled) return;
 
@@ -130,24 +216,16 @@ export function usePushNotifications() {
     try {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
       
-      const permStatus = await LocalNotifications.checkPermissions();
-      if (permStatus.display !== 'granted') {
-        await LocalNotifications.requestPermissions();
-      }
-
       await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: options.title,
-            body: options.body,
-            id: options.id || Math.floor(Math.random() * 100000),
-            schedule: options.schedule,
-            sound: undefined,
-            attachments: undefined,
-            actionTypeId: '',
-            extra: null
-          }
-        ]
+        notifications: [{
+          title: options.title,
+          body: options.body,
+          id: options.id || Math.floor(Math.random() * 100000),
+          schedule: options.schedule || { at: new Date(Date.now() + 100) },
+          sound: 'default',
+          channelId: 'default',
+          extra: options.data,
+        }],
       });
     } catch (error) {
       console.error('Failed to send local notification:', error);
@@ -155,10 +233,10 @@ export function usePushNotifications() {
     }
   }, [isEnabled]);
 
-  // Cancel scheduled notification
+  // Cancel a notification
   const cancelNotification = useCallback(async (id: number) => {
     if (!Capacitor.isNativePlatform()) return;
-    
+
     try {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
       await LocalNotifications.cancel({ notifications: [{ id }] });
@@ -170,11 +248,13 @@ export function usePushNotifications() {
   // Cancel all notifications
   const cancelAllNotifications = useCallback(async () => {
     if (!Capacitor.isNativePlatform()) return;
-    
+
     try {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
       const pending = await LocalNotifications.getPending();
-      await LocalNotifications.cancel({ notifications: pending.notifications });
+      if (pending.notifications.length > 0) {
+        await LocalNotifications.cancel({ notifications: pending.notifications });
+      }
     } catch (error) {
       console.error('Failed to cancel all notifications:', error);
     }
@@ -184,9 +264,11 @@ export function usePushNotifications() {
     pushToken,
     isRegistered,
     isEnabled,
+    isInitializing,
     setNotificationsEnabled,
+    registerForPush,
     sendLocalNotification,
     cancelNotification,
-    cancelAllNotifications
+    cancelAllNotifications,
   };
 }

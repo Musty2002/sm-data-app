@@ -1,337 +1,231 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface PushNotificationRequest {
+interface PushRequest {
+  token: string;
   title: string;
-  message: string;
-  tokens?: string[];
-  topic?: string;
+  body: string;
   data?: Record<string, string>;
 }
 
-// Generate JWT for Google OAuth2
-async function createJWT(clientEmail: string, privateKey: string): Promise<string> {
-  const header = { alg: "RS256", typ: "JWT" };
+// Create JWT for Google OAuth2
+async function createJWT(serviceAccount: { client_email: string; private_key: string }): Promise<string> {
+  const header = { alg: 'RS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
   const payload = {
-    iss: clientEmail,
-    sub: clientEmail,
-    aud: "https://oauth2.googleapis.com/token",
+    iss: serviceAccount.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600,
-    scope: "https://www.googleapis.com/auth/firebase.messaging",
   };
 
-  const encode = (obj: object) => {
-    const json = JSON.stringify(obj);
-    const bytes = new TextEncoder().encode(json);
-    return btoa(String.fromCharCode(...bytes))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-  };
-
-  const headerB64 = encode(header);
-  const payloadB64 = encode(payload);
+  const encoder = new TextEncoder();
+  const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   const unsignedToken = `${headerB64}.${payloadB64}`;
 
-  // Import private key and sign
-  // Accept either: raw PEM, PEM with escaped newlines, or full service-account JSON.
-  let keySource = (privateKey ?? "").trim();
-
-  // If the whole service-account JSON was pasted, extract the private_key field
-  if (keySource.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(keySource);
-      if (typeof parsed?.private_key === "string") keySource = parsed.private_key;
-    } catch {
-      // ignore JSON parse errors and treat as raw key
-    }
+  // Import private key
+  let privateKey = serviceAccount.private_key;
+  
+  // Handle escaped newlines
+  if (privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
   }
 
-  // Convert escaped newlines to real newlines then strip PEM armor + whitespace
-  keySource = keySource.replace(/\\n/g, "\n");
+  const pemContents = privateKey
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s/g, '');
 
-  let cleanKey = keySource
-    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-    .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/[\n\r\s]/g, "");
-
-  // Remove any stray characters like quotes/commas that make base64 decoding fail
-  const invalidChars = cleanKey.match(/[^A-Za-z0-9+/=_-]/g);
-  if (invalidChars?.length) {
-    console.warn(`Private key contained ${invalidChars.length} non-base64 characters; stripping.`);
-    cleanKey = cleanKey.replace(/[^A-Za-z0-9+/=_-]/g, "");
-  }
-
-  console.log("Private key length after cleaning:", cleanKey.length);
-
-  // Decode base64 using a safer method
-  let binaryKey: Uint8Array;
-  try {
-    // Use standard base64 decoding
-    const binaryString = atob(cleanKey);
-    binaryKey = Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
-  } catch (base64Error) {
-    console.error("Base64 decode error, trying URL-safe decode:", base64Error);
-    // Try URL-safe base64 (replace - with + and _ with /)
-    cleanKey = cleanKey.replace(/-/g, "+").replace(/_/g, "/");
-    // Add padding if needed
-    while (cleanKey.length % 4 !== 0) {
-      cleanKey += "=";
-    }
-    const binaryString = atob(cleanKey);
-    binaryKey = Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
-  }
+  const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
 
   const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey.buffer as ArrayBuffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    'pkcs8',
+    binaryKey,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
-    ["sign"]
+    ['sign']
   );
 
   const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
+    'RSASSA-PKCS1-v1_5',
     cryptoKey,
-    new TextEncoder().encode(unsignedToken)
+    encoder.encode(unsignedToken)
   );
 
   const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
 
   return `${unsignedToken}.${signatureB64}`;
 }
 
-// Get OAuth2 access token
-async function getAccessToken(clientEmail: string, privateKey: string): Promise<string> {
-  const jwt = await createJWT(clientEmail, privateKey);
+// Exchange JWT for OAuth2 access token
+async function getAccessToken(serviceAccount: { client_email: string; private_key: string }): Promise<string> {
+  const jwt = await createJWT(serviceAccount);
 
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
-    }),
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("OAuth2 token error:", errorText);
-    throw new Error(`Failed to get access token: ${response.status}`);
+    console.error('OAuth2 token exchange failed:', errorText);
+    throw new Error(`Failed to get access token: ${errorText}`);
   }
 
   const data = await response.json();
   return data.access_token;
 }
 
-// Send notification via FCM v1 API
+// Send FCM v1 notification
 async function sendFCMv1(
   projectId: string,
   accessToken: string,
-  message: {
-    topic?: string;
-    token?: string;
-    notification: { title: string; body: string };
-    data?: Record<string, string>;
-    android?: object;
-    apns?: object;
-  }
-): Promise<{ success: boolean; data?: any; error?: string }> {
-  const url = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+  token: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<{ success: boolean; messageId?: string; errorCode?: string; error?: string }> {
+  const message: Record<string, unknown> = {
+    message: {
+      token,
+      notification: { title, body },
+      android: {
+        priority: 'high',
+        notification: {
+          channel_id: 'default',
+          sound: 'default',
+        },
       },
-      body: JSON.stringify({ message }),
-    });
+    },
+  };
 
-    const text = await response.text();
-    
-    if (!response.ok) {
-      console.error("FCM v1 error:", text);
-      return { success: false, error: text };
-    }
-
-    try {
-      const data = JSON.parse(text);
-      return { success: true, data };
-    } catch {
-      return { success: true, data: text };
-    }
-  } catch (error: any) {
-    console.error("FCM v1 request failed:", error);
-    return { success: false, error: error.message };
+  if (data) {
+    (message.message as Record<string, unknown>).data = data;
   }
+
+  console.log(`Sending FCM to token: ${token.substring(0, 20)}...`);
+
+  const response = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    }
+  );
+
+  const responseData = await response.json();
+
+  if (!response.ok) {
+    console.error('FCM send failed:', JSON.stringify(responseData));
+    const errorCode = responseData?.error?.details?.[0]?.errorCode || 
+                      responseData?.error?.status || 
+                      'UNKNOWN';
+    return { 
+      success: false, 
+      errorCode,
+      error: responseData?.error?.message || 'Unknown error'
+    };
+  }
+
+  console.log('FCM send success:', responseData.name);
+  return { success: true, messageId: responseData.name };
 }
 
-serve(async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const projectId = Deno.env.get("FIREBASE_PROJECT_ID");
-    const clientEmail = Deno.env.get("FIREBASE_CLIENT_EMAIL");
-    const privateKey = Deno.env.get("FIREBASE_PRIVATE_KEY");
+    // Get service account from environment - supports full JSON or separate keys
+    let serviceAccount: { project_id: string; client_email: string; private_key: string };
+    
+    const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
+    
+    if (serviceAccountJson) {
+      try {
+        serviceAccount = JSON.parse(serviceAccountJson);
+      } catch (e) {
+        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:', e);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid service account JSON' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      // Fallback to separate environment variables
+      const projectId = Deno.env.get('FIREBASE_PROJECT_ID');
+      const clientEmail = Deno.env.get('FIREBASE_CLIENT_EMAIL');
+      const privateKey = Deno.env.get('FIREBASE_PRIVATE_KEY');
+      
+      if (!projectId || !clientEmail || !privateKey) {
+        console.error('Firebase not configured');
+        return new Response(
+          JSON.stringify({ success: false, error: 'Firebase not configured. Add FIREBASE_SERVICE_ACCOUNT secret.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      serviceAccount = { project_id: projectId, client_email: clientEmail, private_key: privateKey };
+    }
 
-    console.log("FCM v1 config - Project ID:", !!projectId, "Client Email:", !!clientEmail, "Private Key:", !!privateKey);
+    const projectId = serviceAccount.project_id;
+    if (!projectId || !serviceAccount.client_email || !serviceAccount.private_key) {
+      console.error('Service account missing required fields');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid service account: missing required fields' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Parse request body
-    let body;
-    try {
-      body = await req.json();
-    } catch (e) {
-      console.error("Failed to parse request body:", e);
+    const { token, title, body, data } = await req.json() as PushRequest;
+
+    if (!token || !title || !body) {
       return new Response(
-        JSON.stringify({ success: false, error: "Invalid JSON body" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ success: false, error: 'Missing required fields: token, title, body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { title, message, tokens, topic, data }: PushNotificationRequest = body;
-
-    if (!title || !message) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Title and message are required" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    console.log(`Processing push notification: ${title}`);
-
-    // If FCM v1 is not configured, skip but return success for in-app notifications
-    if (!projectId || !clientEmail || !privateKey) {
-      console.log("FCM v1 not fully configured, skipping push notification");
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "In-app notification will be created (FCM not configured)",
-          fcmSkipped: true,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
+    console.log(`Processing push notification: "${title}" to token: ${token.substring(0, 20)}...`);
 
     // Get OAuth2 access token
-    let accessToken: string;
-    try {
-      // Handle escaped newlines in private key (common when stored as env var)
-      // Also handle the case where the whole service-account JSON was pasted.
-      let formattedPrivateKey = privateKey;
-      try {
-        const trimmed = formattedPrivateKey.trim();
-        if (trimmed.startsWith("{")) {
-          const parsed = JSON.parse(trimmed);
-          if (typeof parsed?.private_key === "string") formattedPrivateKey = parsed.private_key;
-        }
-      } catch {
-        // ignore
-      }
-      formattedPrivateKey = formattedPrivateKey.replace(/\\n/g, "\n");
+    const accessToken = await getAccessToken(serviceAccount);
+    console.log('Successfully obtained OAuth2 access token');
 
-      accessToken = await getAccessToken(clientEmail, formattedPrivateKey);
-      console.log("Successfully obtained OAuth2 access token");
-    } catch (error: any) {
-      console.error("Failed to get access token:", error);
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "In-app notification will be created (FCM auth failed)",
-          fcmSuccess: false,
-          fcmError: error.message,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    // Build FCM v1 message
-    const fcmMessage: any = {
-      notification: {
-        title,
-        body: message,
-      },
-      data: data || {},
-      android: {
-        notification: {
-          sound: "default",
-          channel_id: "default",
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-            badge: 1,
-          },
-        },
-      },
-    };
-
-    let results: any[] = [];
-
-    // Send to specific tokens
-    if (tokens && tokens.length > 0) {
-      console.log(`Sending to ${tokens.length} device tokens`);
-      
-      for (const token of tokens) {
-        const result = await sendFCMv1(projectId, accessToken, {
-          ...fcmMessage,
-          token,
-        });
-        results.push({ token: token.substring(0, 20) + "...", ...result });
-      }
-    }
-    // Send to a topic
-    else {
-      const targetTopic = topic || "all";
-      console.log(`Sending to topic: ${targetTopic}`);
-      
-      const result = await sendFCMv1(projectId, accessToken, {
-        ...fcmMessage,
-        topic: targetTopic,
-      });
-      results.push(result);
-    }
-
-    const allSuccess = results.every((r) => r.success);
+    // Send the notification
+    const result = await sendFCMv1(projectId, accessToken, token, title, body, data);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: allSuccess
-          ? "Push notification sent successfully via FCM v1"
-          : "Push notification partially sent",
-        fcmSuccess: allSuccess,
-        fcmVersion: "v1",
-        results,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      JSON.stringify(result),
+      { 
+        status: result.success ? 200 : 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
-  } catch (error: any) {
-    console.error("Error in push notification handler:", error);
+
+  } catch (error: unknown) {
+    console.error('Push notification error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: "In-app notification will be created (push failed)",
-        fcmSuccess: false,
-        fcmError: error.message,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      JSON.stringify({ success: false, error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

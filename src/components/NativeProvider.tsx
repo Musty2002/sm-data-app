@@ -39,7 +39,7 @@ export function NativeProvider({ children }: { children: ReactNode }) {
     isRegistered: pushNotifications.isRegistered,
     isNotificationsEnabled: pushNotifications.isEnabled,
     setNotificationsEnabled: pushNotifications.setNotificationsEnabled,
-    sendLocalNotification: pushNotifications.sendLocalNotification,
+    sendLocalNotification: pushNotifications.sendLocalNotification as any,
     cancelNotification: pushNotifications.cancelNotification,
     cancelAllNotifications: pushNotifications.cancelAllNotifications
   };
