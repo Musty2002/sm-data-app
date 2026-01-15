@@ -83,7 +83,7 @@ export function usePushNotifications() {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
       console.log('[PushNotifications] Plugins imported successfully');
 
-      // Create default notification channel for Android
+      // Create default notification channel for Android with app icon
       if (Capacitor.getPlatform() === 'android') {
         try {
           await LocalNotifications.createChannel({
@@ -95,9 +95,20 @@ export function usePushNotifications() {
             sound: 'default',
             vibration: true,
           });
-          console.log('Android notification channel created');
+          console.log('[PushNotifications] Android notification channel created');
+          
+          // Also create a channel for push notifications with the small icon
+          await LocalNotifications.createChannel({
+            id: 'push_notifications',
+            name: 'Push Notifications',
+            description: 'Push notifications from SM Data App',
+            importance: 5,
+            visibility: 1,
+            sound: 'default',
+            vibration: true,
+          });
         } catch (channelError) {
-          console.warn('Failed to create notification channel:', channelError);
+          console.warn('[PushNotifications] Failed to create notification channel:', channelError);
         }
       }
 
@@ -161,6 +172,8 @@ export function usePushNotifications() {
               schedule: { at: new Date(Date.now() + 100) },
               sound: 'default',
               channelId: 'default',
+              smallIcon: 'ic_stat_notification',
+              largeIcon: 'ic_launcher',
               extra: notification.data,
             }],
           });
