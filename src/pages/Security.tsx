@@ -23,6 +23,7 @@ import {
   isBiometricForTransactionsEnabled, 
   setBiometricForTransactions 
 } from '@/components/auth/TransactionVerifyDialog';
+import { ForgotTransactionPinDialog } from '@/components/auth/ForgotTransactionPinDialog';
 
 export default function Security() {
   const navigate = useNavigate();
@@ -50,6 +51,7 @@ export default function Security() {
   const [transactionPinOpen, setTransactionPinOpen] = useState(false);
   const [hasTransactionPin, setHasTransactionPin] = useState(isTransactionPinSetup());
   const [biometricForTransactions, setBiometricForTransactionsState] = useState(isBiometricForTransactionsEnabled());
+  const [forgotPinOpen, setForgotPinOpen] = useState(false);
 
   // Check PIN status on mount
   useEffect(() => {
@@ -309,6 +311,16 @@ export default function Security() {
                   />
                 </div>
               )}
+
+              {/* Forgot PIN Link */}
+              {hasTransactionPin && (
+                <button
+                  onClick={() => setForgotPinOpen(true)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot Transaction PIN?
+                </button>
+              )}
             </CardContent>
           </Card>
 
@@ -417,6 +429,16 @@ export default function Security() {
               setHasTransactionPin(true);
               toast.success('Transaction PIN set up successfully!');
             }}
+          />
+
+          <ForgotTransactionPinDialog
+            open={forgotPinOpen}
+            onOpenChange={setForgotPinOpen}
+            onComplete={() => {
+              setHasTransactionPin(true);
+              toast.success('Transaction PIN reset successfully!');
+            }}
+            userEmail={user?.email || ''}
           />
 
           {/* Active Sessions */}
