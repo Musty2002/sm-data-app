@@ -19,6 +19,10 @@ import {
   isTransactionPinSetup,
   clearTransactionPin
 } from '@/components/auth/PinSetupDialog';
+import { 
+  isBiometricForTransactionsEnabled, 
+  setBiometricForTransactions 
+} from '@/components/auth/TransactionVerifyDialog';
 
 export default function Security() {
   const navigate = useNavigate();
@@ -45,10 +49,12 @@ export default function Security() {
   const [hasPinSetup, setHasPinSetup] = useState(isPinSetup());
   const [transactionPinOpen, setTransactionPinOpen] = useState(false);
   const [hasTransactionPin, setHasTransactionPin] = useState(isTransactionPinSetup());
+  const [biometricForTransactions, setBiometricForTransactionsState] = useState(isBiometricForTransactionsEnabled());
 
   // Check PIN status on mount
   useEffect(() => {
     setHasPinSetup(isPinSetup());
+    setBiometricForTransactionsState(isBiometricForTransactionsEnabled());
     setHasTransactionPin(isTransactionPinSetup());
   }, [pinSetupOpen, transactionPinOpen]);
 
@@ -278,6 +284,30 @@ export default function Security() {
                 <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
                   ⚠️ Please set up your transaction PIN to authorize transactions.
                 </p>
+              )}
+
+              {/* Biometric for Transactions Toggle */}
+              {isAvailable && isEnabled && hasTransactionPin && (
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="flex items-center gap-3">
+                    <Fingerprint className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-foreground">Pay with {biometryName}</p>
+                      <p className="text-xs text-muted-foreground">Use as alternative to PIN</p>
+                    </div>
+                  </div>
+                  <Switch 
+                    checked={biometricForTransactions}
+                    onCheckedChange={(checked) => {
+                      setBiometricForTransactions(checked);
+                      setBiometricForTransactionsState(checked);
+                      toast.success(checked 
+                        ? `${biometryName} enabled for transactions` 
+                        : `${biometryName} disabled for transactions`
+                      );
+                    }}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
