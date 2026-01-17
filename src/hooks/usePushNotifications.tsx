@@ -268,6 +268,8 @@ export function usePushNotifications() {
           schedule: options.schedule || { at: new Date(Date.now() + 100) },
           sound: 'default',
           channelId: 'default',
+          smallIcon: 'ic_stat_notification',
+          largeIcon: 'ic_launcher',
           extra: options.data,
         }],
       });
