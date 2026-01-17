@@ -190,6 +190,38 @@ Deno.serve(async (req) => {
       console.error("Failed to create notification:", notifError);
     }
 
+    // Send native push notification for deposit
+    try {
+      const { data: pushSubscriptions } = await supabase
+        .from("push_subscriptions")
+        .select("endpoint")
+        .eq("user_id", profile.user_id);
+
+      if (pushSubscriptions && pushSubscriptions.length > 0) {
+        for (const sub of pushSubscriptions) {
+          try {
+            await supabase.functions.invoke('send-push-notification', {
+              body: {
+                token: sub.endpoint,
+                title: "💰 Deposit Received!",
+                body: `₦${amountPaid.toLocaleString()} credited from ${webhookData.sender.name}`,
+                data: {
+                  type: 'deposit',
+                  amount: amountPaid,
+                  reference: transactionId,
+                  route: '/history'
+                }
+              }
+            });
+          } catch (pushErr) {
+            console.error("Failed to send push notification:", pushErr);
+          }
+        }
+      }
+    } catch (pushError) {
+      console.error("Error sending push notifications:", pushError);
+    }
+
     console.log(`Successfully credited ₦${amountPaid} to user ${profile.user_id}. New balance: ₦${newBalance}`);
 
     return new Response(
