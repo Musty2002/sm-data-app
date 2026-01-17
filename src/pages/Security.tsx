@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { ArrowLeft, Lock, Smartphone, Shield, Eye, EyeOff, Loader2, Fingerprint, KeyRound } from 'lucide-react';
+import { ArrowLeft, Lock, Smartphone, Shield, Eye, EyeOff, Loader2, Fingerprint, KeyRound, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useBiometricAuth } from '@/hooks/useBiometricAuth';
 import { useAuth } from '@/hooks/useAuth';
-import { PinSetupDialog, isPinSetup, clearStoredPin } from '@/components/auth/PinSetupDialog';
+import { 
+  PinSetupDialog, 
+  isPinSetup, 
+  clearStoredPin, 
+  TransactionPinDialog,
+  isTransactionPinSetup,
+  clearTransactionPin
+} from '@/components/auth/PinSetupDialog';
 
 export default function Security() {
   const navigate = useNavigate();
@@ -25,36 +32,64 @@ export default function Security() {
     disableBiometricAuth 
   } = useBiometricAuth();
   
-  const [showPassword, setShowPassword] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [biometricLoading, setBiometricLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({
+    oldPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
   const [pinSetupOpen, setPinSetupOpen] = useState(false);
   const [hasPinSetup, setHasPinSetup] = useState(isPinSetup());
+  const [transactionPinOpen, setTransactionPinOpen] = useState(false);
+  const [hasTransactionPin, setHasTransactionPin] = useState(isTransactionPinSetup());
 
   // Check PIN status on mount
   useEffect(() => {
     setHasPinSetup(isPinSetup());
-  }, [pinSetupOpen]);
+    setHasTransactionPin(isTransactionPinSetup());
+  }, [pinSetupOpen, transactionPinOpen]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!passwordData.oldPassword) {
+      toast.error('Please enter your current password');
+      return;
+    }
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error('New passwords do not match');
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      toast.error('New password must be at least 6 characters');
+      return;
+    }
+
+    if (passwordData.oldPassword === passwordData.newPassword) {
+      toast.error('New password must be different from current password');
       return;
     }
 
     setLoading(true);
     try {
+      // First, verify the old password by re-authenticating
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: passwordData.oldPassword,
+      });
+
+      if (signInError) {
+        toast.error('Current password is incorrect');
+        setLoading(false);
+        return;
+      }
+
+      // Now update to the new password
       const { error } = await supabase.auth.updateUser({
         password: passwordData.newPassword,
       });
@@ -62,7 +97,7 @@ export default function Security() {
       if (error) throw error;
 
       toast.success('Password updated successfully');
-      setPasswordData({ newPassword: '', confirmPassword: '' });
+      setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error: any) {
       console.error('Error updating password:', error);
       toast.error(error.message || 'Failed to update password');
@@ -75,6 +110,12 @@ export default function Security() {
     clearStoredPin();
     setHasPinSetup(false);
     setPinSetupOpen(true);
+  };
+
+  const handleResetTransactionPin = () => {
+    clearTransactionPin();
+    setHasTransactionPin(false);
+    setTransactionPinOpen(true);
   };
 
   return (
@@ -103,30 +144,50 @@ export default function Security() {
             <CardContent>
               <form onSubmit={handleChangePassword} className="space-y-4">
                 <div className="space-y-2">
+                  <Label htmlFor="oldPassword">Current Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="oldPassword"
+                      type={showOldPassword ? 'text' : 'password'}
+                      value={passwordData.oldPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOldPassword(!showOldPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    >
+                      {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>
                   <div className="relative">
                     <Input
                       id="newPassword"
-                      type={showPassword ? 'text' : 'password'}
+                      type={showNewPassword ? 'text' : 'password'}
                       value={passwordData.newPassword}
                       onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                       placeholder="Enter new password"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={() => setShowNewPassword(!showNewPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                     >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
                   <Input
                     id="confirmPassword"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showNewPassword ? 'text' : 'password'}
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                     placeholder="Confirm new password"
@@ -179,6 +240,43 @@ export default function Security() {
               {!hasPinSetup && (
                 <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
                   ⚠️ Please set up your PIN to secure your account when returning to the app.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Transaction PIN */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CreditCard className="w-5 h-5 text-primary" />
+                Transaction PIN
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Lock className="w-5 h-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium text-foreground">4-Digit Transaction PIN</p>
+                    <p className="text-xs text-muted-foreground">
+                      {hasTransactionPin ? 'Transaction PIN is set up' : 'Required for all transactions'}
+                    </p>
+                  </div>
+                </div>
+                {hasTransactionPin ? (
+                  <Button variant="outline" size="sm" onClick={handleResetTransactionPin}>
+                    Change
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => setTransactionPinOpen(true)}>
+                    Set Up
+                  </Button>
+                )}
+              </div>
+              {!hasTransactionPin && (
+                <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
+                  ⚠️ Please set up your transaction PIN to authorize transactions.
                 </p>
               )}
             </CardContent>
@@ -264,11 +362,11 @@ export default function Security() {
                 <div className="flex items-center gap-3">
                   <Lock className="w-5 h-5 text-muted-foreground" />
                   <div>
-                    <p className="font-medium text-foreground">Transaction PIN</p>
-                    <p className="text-xs text-muted-foreground">Require PIN for transactions</p>
+                    <p className="font-medium text-foreground">Require Transaction PIN</p>
+                    <p className="text-xs text-muted-foreground">PIN required for all transactions</p>
                   </div>
                 </div>
-                <Switch defaultChecked />
+                <Switch defaultChecked disabled />
               </div>
             </CardContent>
           </Card>
@@ -279,6 +377,15 @@ export default function Security() {
             onComplete={() => {
               setHasPinSetup(true);
               toast.success('PIN set up successfully!');
+            }}
+          />
+
+          <TransactionPinDialog
+            open={transactionPinOpen}
+            onOpenChange={setTransactionPinOpen}
+            onComplete={() => {
+              setHasTransactionPin(true);
+              toast.success('Transaction PIN set up successfully!');
             }}
           />
 
