@@ -33,6 +33,7 @@ import WebAuth from "./pages/WebAuth";
 import WebAbout from "./pages/WebAbout";
 import WebContact from "./pages/WebContact";
 import WebPricing from "./pages/WebPricing";
+import WebPrivacyPolicy from "./pages/WebPrivacyPolicy";
 import Cashback from "./pages/Cashback";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -196,6 +197,7 @@ function AppRoutes() {
       <Route path="/webabout" element={<WebAbout />} />
       <Route path="/webcontact" element={<WebContact />} />
       <Route path="/webpricing" element={<WebPricing />} />
+      <Route path="/website/privacy-policy" element={<WebPrivacyPolicy />} />
       
       {/* App routes */}
       <Route 
