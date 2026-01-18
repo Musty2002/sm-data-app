@@ -13,7 +13,8 @@ import {
   Mail,
   DollarSign,
   Gift,
-  AlertTriangle
+  AlertTriangle,
+  Coins
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -22,6 +23,14 @@ interface AppSettings {
   min_deposit: { amount: number };
   maintenance_mode: { enabled: boolean };
   contact_info: { email: string; phone: string };
+  cashback_config: { 
+    enabled: boolean; 
+    data_rate: number; 
+    data_unit: string;
+    airtime_rate: number; 
+    airtime_unit: number;
+    min_withdrawal: number;
+  };
 }
 
 export default function SettingsPage() {
@@ -51,7 +60,15 @@ export default function SettingsPage() {
         referral_bonus: settingsMap.referral_bonus || { referrer: 200, referee: 100 },
         min_deposit: settingsMap.min_deposit || { amount: 100 },
         maintenance_mode: settingsMap.maintenance_mode || { enabled: false },
-        contact_info: settingsMap.contact_info || { email: '', phone: '' }
+        contact_info: settingsMap.contact_info || { email: '', phone: '' },
+        cashback_config: settingsMap.cashback_config || { 
+          enabled: true, 
+          data_rate: 5, 
+          data_unit: '1GB',
+          airtime_rate: 2, 
+          airtime_unit: 100,
+          min_withdrawal: 100
+        }
       });
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -260,6 +277,100 @@ export default function SettingsPage() {
             {settings.maintenance_mode.enabled && (
               <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded-lg text-sm text-red-800">
                 Warning: Users will not be able to access the app while maintenance mode is enabled.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Cashback Configuration */}
+        <Card className={!settings.cashback_config.enabled ? 'border-orange-200 bg-orange-50' : ''}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Coins className={`w-5 h-5 ${!settings.cashback_config.enabled ? 'text-orange-500' : ''}`} />
+              Cashback Rewards
+            </CardTitle>
+            <CardDescription>Configure cashback program settings</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Enable Cashback</p>
+                <p className="text-sm text-gray-500">
+                  {settings.cashback_config.enabled 
+                    ? 'Users earn cashback on transactions' 
+                    : 'Cashback is currently disabled'}
+                </p>
+              </div>
+              <Switch
+                checked={settings.cashback_config.enabled}
+                onCheckedChange={(checked) => updateSetting('cashback_config', { 
+                  ...settings.cashback_config, 
+                  enabled: checked 
+                })}
+              />
+            </div>
+            
+            {settings.cashback_config.enabled && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Data Cashback (₦)</Label>
+                    <Input
+                      type="number"
+                      value={settings.cashback_config.data_rate}
+                      onChange={(e) => updateSetting('cashback_config', {
+                        ...settings.cashback_config,
+                        data_rate: parseFloat(e.target.value) || 0
+                      })}
+                    />
+                    <p className="text-xs text-gray-500">Amount per 1GB</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Airtime Cashback (₦)</Label>
+                    <Input
+                      type="number"
+                      value={settings.cashback_config.airtime_rate}
+                      onChange={(e) => updateSetting('cashback_config', {
+                        ...settings.cashback_config,
+                        airtime_rate: parseFloat(e.target.value) || 0
+                      })}
+                    />
+                    <p className="text-xs text-gray-500">Amount per ₦{settings.cashback_config.airtime_unit}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Airtime Unit (₦)</Label>
+                    <Input
+                      type="number"
+                      value={settings.cashback_config.airtime_unit}
+                      onChange={(e) => updateSetting('cashback_config', {
+                        ...settings.cashback_config,
+                        airtime_unit: parseInt(e.target.value) || 100
+                      })}
+                    />
+                    <p className="text-xs text-gray-500">Per how much naira spent</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Min Withdrawal (₦)</Label>
+                    <Input
+                      type="number"
+                      value={settings.cashback_config.min_withdrawal}
+                      onChange={(e) => updateSetting('cashback_config', {
+                        ...settings.cashback_config,
+                        min_withdrawal: parseInt(e.target.value) || 100
+                      })}
+                    />
+                    <p className="text-xs text-gray-500">Minimum amount to withdraw</p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {!settings.cashback_config.enabled && (
+              <div className="mt-2 p-3 bg-orange-100 border border-orange-200 rounded-lg text-sm text-orange-800">
+                Cashback is disabled. Users will not earn rewards on purchases.
               </div>
             )}
           </CardContent>

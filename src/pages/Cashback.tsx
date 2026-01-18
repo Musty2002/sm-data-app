@@ -17,6 +17,15 @@ interface CashbackTransaction {
   created_at: string;
 }
 
+interface CashbackConfig {
+  enabled: boolean;
+  data_rate: number;
+  data_unit: string;
+  airtime_rate: number;
+  airtime_unit: number;
+  min_withdrawal: number;
+}
+
 export default function Cashback() {
   const navigate = useNavigate();
   const { user, cashbackWallet, refreshCashbackWallet } = useAuth();
@@ -24,12 +33,37 @@ export default function Cashback() {
   const [transactions, setTransactions] = useState<CashbackTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [withdrawing, setWithdrawing] = useState(false);
+  const [cashbackConfig, setCashbackConfig] = useState<CashbackConfig>({
+    enabled: true,
+    data_rate: 5,
+    data_unit: '1GB',
+    airtime_rate: 2,
+    airtime_unit: 100,
+    min_withdrawal: 100
+  });
 
   useEffect(() => {
+    fetchCashbackConfig();
     if (user) {
       fetchTransactions();
     }
   }, [user]);
+
+  const fetchCashbackConfig = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'cashback_config')
+        .single();
+
+      if (!error && data?.value) {
+        setCashbackConfig(data.value as unknown as CashbackConfig);
+      }
+    } catch (error) {
+      console.error('Error fetching cashback config:', error);
+    }
+  };
 
   const fetchTransactions = async () => {
     if (!user) return;
@@ -52,11 +86,11 @@ export default function Cashback() {
   };
 
   const handleWithdraw = async () => {
-    if (!cashbackWallet || cashbackWallet.balance < 100) {
+    if (!cashbackWallet || cashbackWallet.balance < cashbackConfig.min_withdrawal) {
       toast({
         variant: 'destructive',
         title: 'Cannot withdraw',
-        description: 'Minimum withdrawal amount is ₦100',
+        description: `Minimum withdrawal amount is ₦${cashbackConfig.min_withdrawal}`,
       });
       return;
     }
@@ -97,6 +131,30 @@ export default function Cashback() {
     }).format(amount);
   };
 
+  // If cashback is disabled, show disabled state
+  if (!cashbackConfig.enabled) {
+    return (
+      <MobileLayout showNav={false}>
+        <div className="safe-area-top">
+          <div className="flex items-center gap-4 px-4 py-4">
+            <button onClick={() => navigate(-1)} className="p-2 -ml-2">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-lg font-bold text-foreground">Cashback Rewards</h1>
+          </div>
+          
+          <div className="mx-4 mt-8 text-center">
+            <Coins className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <h2 className="text-xl font-bold text-foreground mb-2">Cashback Currently Unavailable</h2>
+            <p className="text-muted-foreground">
+              The cashback rewards program is temporarily paused. Please check back later.
+            </p>
+          </div>
+        </div>
+      </MobileLayout>
+    );
+  }
+
   return (
     <MobileLayout showNav={false}>
       <div className="safe-area-top">
@@ -121,14 +179,14 @@ export default function Cashback() {
             variant="secondary"
             className="w-full"
             onClick={handleWithdraw}
-            disabled={withdrawing || !cashbackWallet || cashbackWallet.balance < 100}
+            disabled={withdrawing || !cashbackWallet || cashbackWallet.balance < cashbackConfig.min_withdrawal}
           >
             <Wallet className="w-4 h-4 mr-2" />
             {withdrawing ? 'Processing...' : 'Withdraw to Main Wallet'}
           </Button>
-          {cashbackWallet && cashbackWallet.balance < 100 && (
+          {cashbackWallet && cashbackWallet.balance < cashbackConfig.min_withdrawal && (
             <p className="text-xs text-center mt-2 opacity-75">
-              Minimum withdrawal: ₦100
+              Minimum withdrawal: ₦{cashbackConfig.min_withdrawal}
             </p>
           )}
         </div>
@@ -161,11 +219,11 @@ export default function Cashback() {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Data Purchase</span>
-              <span className="font-medium text-green-600">₦5 per 1GB</span>
+              <span className="font-medium text-green-600">₦{cashbackConfig.data_rate} per {cashbackConfig.data_unit}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Airtime Purchase</span>
-              <span className="font-medium text-green-600">₦2 per ₦100</span>
+              <span className="font-medium text-green-600">₦{cashbackConfig.airtime_rate} per ₦{cashbackConfig.airtime_unit}</span>
             </div>
           </div>
         </div>
