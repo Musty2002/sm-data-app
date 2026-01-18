@@ -210,15 +210,22 @@ export function usePushNotifications() {
   useEffect(() => {
     console.log('[PushNotifications] Mount effect running', {
       isNative: Capacitor.isNativePlatform(),
-      platform: Capacitor.getPlatform()
+      platform: Capacitor.getPlatform(),
     });
-    
+
     // Check for stored token
     const storedToken = localStorage.getItem(FCM_TOKEN_KEY);
     if (storedToken) {
       console.log('[PushNotifications] Found stored token:', storedToken.substring(0, 20) + '...');
       setPushToken(storedToken);
       setIsRegistered(true);
+
+      // Important: ensure the token is persisted to the backend even if
+      // the native registration callback doesn't fire on subsequent launches.
+      (async () => {
+        console.log('[PushNotifications] Syncing stored token to database...');
+        await saveTokenToDatabase(storedToken);
+      })();
     }
 
     // Only initialize on native platforms
@@ -226,7 +233,24 @@ export function usePushNotifications() {
       console.log('[PushNotifications] Initializing on native platform...');
       initPush();
     }
-  }, [initPush]);
+  }, [initPush, saveTokenToDatabase]);
+
+  // When the user logs in/out, re-save the token so the subscription is linked
+  // to the authenticated user_id (instead of staying anonymous).
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (!pushToken) return;
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        console.log('[PushNotifications] Auth changed, re-syncing token to database...');
+        saveTokenToDatabase(pushToken);
+      }
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, [pushToken, saveTokenToDatabase]);
 
   // Enable/disable notifications
   const setNotificationsEnabled = useCallback((enabled: boolean) => {
