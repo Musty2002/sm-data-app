@@ -86,8 +86,6 @@ export function useNativeFeatures() {
         
         if (!status.connected) {
           toast.error('No internet connection');
-        } else {
-          toast.success('Back online');
         }
       });
     };

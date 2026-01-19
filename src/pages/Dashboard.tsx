@@ -1,19 +1,103 @@
+import { useState, useCallback } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { AccountCard } from '@/components/dashboard/AccountCard';
 import { ServicesGrid } from '@/components/dashboard/ServicesGrid';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { PromoPopup } from '@/components/PromoPopup';
-import { Bell } from 'lucide-react';
+import { Bell, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import logo from '@/assets/sm-data-logo.jpeg';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { refreshWallet, refreshProfile, refreshCashbackWallet } = useAuth();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+
+  const PULL_THRESHOLD = 80;
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refreshWallet(),
+        refreshProfile(),
+        refreshCashbackWallet(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+      setPullDistance(0);
+    }
+  }, [refreshWallet, refreshProfile, refreshCashbackWallet]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+    if (scrollTop === 0) {
+      setIsPulling(true);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isPulling || isRefreshing) return;
+    
+    const touch = e.touches[0];
+    const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+    
+    if (scrollTop === 0) {
+      const distance = Math.min(touch.clientY - 100, 120);
+      if (distance > 0) {
+        setPullDistance(distance);
+      }
+    }
+  }, [isPulling, isRefreshing]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsPulling(false);
+    if (pullDistance >= PULL_THRESHOLD && !isRefreshing) {
+      handleRefresh();
+    } else {
+      setPullDistance(0);
+    }
+  }, [pullDistance, isRefreshing, handleRefresh]);
 
   return (
     <MobileLayout>
       <PromoPopup />
-      <div className="safe-area-top">
+      <div 
+        className="safe-area-top"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Pull to Refresh Indicator */}
+        <div 
+          className="flex justify-center items-center overflow-hidden transition-all duration-200"
+          style={{ height: isRefreshing ? 50 : pullDistance * 0.5 }}
+        >
+          <div 
+            className={`flex items-center gap-2 text-muted-foreground transition-opacity ${
+              pullDistance > 20 || isRefreshing ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <RefreshCw 
+              className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} 
+              style={{ 
+                transform: isRefreshing ? 'none' : `rotate(${pullDistance * 2}deg)`,
+                color: pullDistance >= PULL_THRESHOLD ? 'hsl(var(--primary))' : undefined
+              }}
+            />
+            <span className="text-sm">
+              {isRefreshing 
+                ? 'Refreshing...' 
+                : pullDistance >= PULL_THRESHOLD 
+                  ? 'Release to refresh' 
+                  : 'Pull to refresh'}
+            </span>
+          </div>
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4">
           <img src={logo} alt="SM Data" className="h-10 w-10 rounded-full object-cover border-2 border-secondary" />
