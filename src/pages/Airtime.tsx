@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { TransactionReceipt } from '@/components/TransactionReceipt';
 import { getEdgeFunctionErrorMessage } from '@/lib/edgeFunctionError';
+import { TransactionVerifyDialog } from '@/components/auth/TransactionVerifyDialog';
 // Import network logos
 import mtnLogo from '@/assets/networks/mtn-logo.png';
 import airtelLogo from '@/assets/networks/airtel-logo.png';
@@ -70,6 +71,7 @@ export default function Airtime() {
   const [purchasing, setPurchasing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showTopUpPrompt, setShowTopUpPrompt] = useState(false);
+  const [showVerifyDialog, setShowVerifyDialog] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<{
     id: string;
     date: Date;
@@ -145,7 +147,7 @@ export default function Airtime() {
     }
   };
 
-  const handlePurchase = async () => {
+  const initiateTransaction = () => {
     if (!selectedNetwork || !phoneNumber || !amount) {
       toast({
         variant: 'destructive',
@@ -165,11 +167,20 @@ export default function Airtime() {
       return;
     }
 
+    // Show verification dialog
+    setShowVerifyDialog(true);
+  };
+
+  const handlePurchase = async () => {
+    setShowVerifyDialog(false);
     setPurchasing(true);
     setShowTopUpPrompt(false);
+    
+    const purchaseAmount = parseFloat(amount);
+    
     try {
       // Route to appropriate provider based on network provider
-      const provider = selectedNetwork.provider || 'rgc';
+      const provider = selectedNetwork!.provider || 'rgc';
       const functionName = provider === 'isquare' ? 'isquare-services' : 'rgc-services';
       
       console.log(`Purchasing airtime via ${provider} provider`);
@@ -178,8 +189,8 @@ export default function Airtime() {
         body: {
           action: 'purchase',
           serviceType: 'airtime',
-          network: selectedNetwork.product_id,
-          amount: amountNum,
+          network: selectedNetwork!.product_id,
+          amount: purchaseAmount,
           mobile_number: phoneNumber,
           phone_number: phoneNumber, // iSquare uses phone_number
         }
@@ -199,8 +210,8 @@ export default function Airtime() {
         id: data.data?.reference || `TXN-${Date.now()}`,
         date: new Date(),
         phoneNumber,
-        network: selectedNetwork.category,
-        amount: amountNum,
+        network: selectedNetwork!.category,
+        amount: purchaseAmount,
         type: 'airtime',
       });
       setShowReceipt(true);
@@ -350,7 +361,7 @@ export default function Airtime() {
               <Button
                 className="w-full"
                 size="lg"
-                onClick={handlePurchase}
+                onClick={initiateTransaction}
                 disabled={!selectedNetwork || !phoneNumber || !amount || purchasing}
               >
                 {purchasing ? (
@@ -382,6 +393,16 @@ export default function Airtime() {
           )}
         </div>
       </div>
+
+      {/* Transaction Verification Dialog */}
+      <TransactionVerifyDialog
+        open={showVerifyDialog}
+        onOpenChange={setShowVerifyDialog}
+        onVerified={handlePurchase}
+        title="Verify Purchase"
+        description="Verify your identity to complete this airtime purchase"
+        amount={parseFloat(amount) || 0}
+      />
 
       {/* Transaction Receipt Modal */}
       {lastTransaction && (
