@@ -1,20 +1,45 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { AccountCard } from '@/components/dashboard/AccountCard';
 import { ServicesGrid } from '@/components/dashboard/ServicesGrid';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { PromoPopup } from '@/components/PromoPopup';
+import { TransactionPinDialog, isTransactionPinSetup } from '@/components/auth/PinSetupDialog';
 import { Bell, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import logo from '@/assets/sm-data-logo.jpeg';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { refreshWallet, refreshProfile, refreshCashbackWallet } = useAuth();
+  const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
+  const [showTransactionPinSetup, setShowTransactionPinSetup] = useState(false);
+
+  // Check if transaction PIN needs to be set up
+  useEffect(() => {
+    const checkTransactionPin = () => {
+      if (!isTransactionPinSetup()) {
+        // Small delay to let the dashboard load first
+        setTimeout(() => {
+          setShowTransactionPinSetup(true);
+        }, 1000);
+      }
+    };
+    
+    checkTransactionPin();
+  }, []);
+
+  const handleTransactionPinComplete = () => {
+    toast({
+      title: 'Transaction PIN Set',
+      description: 'Your transaction PIN has been created successfully.',
+    });
+  };
 
   const PULL_THRESHOLD = 80;
 
@@ -65,7 +90,13 @@ export default function Dashboard() {
   return (
     <MobileLayout>
       <PromoPopup />
-      <div 
+      <TransactionPinDialog
+        open={showTransactionPinSetup}
+        onOpenChange={setShowTransactionPinSetup}
+        onComplete={handleTransactionPinComplete}
+        isRequired={true}
+      />
+      <div
         className="safe-area-top"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
