@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
                 body: `₦${amountPaid.toLocaleString()} credited from ${webhookData.sender.name}`,
                 data: {
                   type: 'deposit',
-                  amount: amountPaid,
+                  amount: String(amountPaid),
                   reference: transactionId,
                   route: '/history'
                 }

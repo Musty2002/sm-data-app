@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { TransactionReceipt } from '@/components/TransactionReceipt';
 import { getEdgeFunctionErrorMessage } from '@/lib/edgeFunctionError';
+import { TransactionVerifyDialog } from '@/components/auth/TransactionVerifyDialog';
 // Import network logos
 import mtnLogo from '@/assets/networks/mtn-logo.png';
 import airtelLogo from '@/assets/networks/airtel-logo.png';
@@ -74,6 +75,7 @@ export default function Data() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showVerifyDialog, setShowVerifyDialog] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<{
     id: string;
     date: Date;
@@ -158,7 +160,7 @@ export default function Data() {
     }
   };
 
-  const handlePurchase = async () => {
+  const initiateTransaction = () => {
     if (!selectedNetwork || !selectedBundle || !phoneNumber) {
       toast({
         variant: 'destructive',
@@ -167,7 +169,12 @@ export default function Data() {
       });
       return;
     }
+    // Show verification dialog
+    setShowVerifyDialog(true);
+  };
 
+  const handlePurchase = async () => {
+    setShowVerifyDialog(false);
     setPurchasing(true);
     try {
       // Route to appropriate provider based on bundle provider
@@ -482,7 +489,7 @@ export default function Data() {
                   <Button
                     className="w-full"
                     size="lg"
-                    onClick={handlePurchase}
+                    onClick={initiateTransaction}
                     disabled={!phoneNumber || purchasing}
                   >
                     {purchasing ? (
@@ -500,6 +507,16 @@ export default function Data() {
           )}
         </div>
       </div>
+
+      {/* Transaction Verification Dialog */}
+      <TransactionVerifyDialog
+        open={showVerifyDialog}
+        onOpenChange={setShowVerifyDialog}
+        onVerified={handlePurchase}
+        title="Verify Purchase"
+        description="Verify your identity to complete this data purchase"
+        amount={selectedBundle ? parseFloat(selectedBundle.amount) : 0}
+      />
 
       {/* Transaction Receipt Modal */}
       {lastTransaction && (

@@ -578,7 +578,7 @@ const Index = () => {
               <ul className="space-y-3 opacity-70">
                 <li className="hover:opacity-100 cursor-pointer transition-opacity">Help Center</li>
                 <li className="hover:opacity-100 cursor-pointer transition-opacity">FAQs</li>
-                <li className="hover:opacity-100 cursor-pointer transition-opacity">Privacy Policy</li>
+                <li onClick={() => navigate('/website/privacy-policy')} className="hover:opacity-100 cursor-pointer transition-opacity">Privacy Policy</li>
                 <li className="hover:opacity-100 cursor-pointer transition-opacity">Terms of Service</li>
                 <li className="hover:opacity-100 cursor-pointer transition-opacity">Refund Policy</li>
               </ul>
