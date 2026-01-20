@@ -103,6 +103,16 @@ export default function Data() {
       const savedBundlesMap = new Map(
         (savedBundles || []).map(b => [`${b.plan_code}|${b.data_type}`, b])
       );
+      
+      // Also create a map by normalized plan name + network for cross-provider dedup
+      // This catches duplicates like "3.2GB 2 DAYS" from both RGC and iSquare
+      const savedByNameMap = new Map(
+        (savedBundles || []).map(b => {
+          const normalizedName = b.plan_name.toUpperCase().replace(/\s+/g, ' ').trim();
+          const network = getNetworkGroup(b.data_type);
+          return [`${normalizedName}|${network}`, b];
+        })
+      );
 
       // Fetch from both RGC and iSquare APIs
       const [rgcResponse, isquareResponse] = await Promise.all([
@@ -114,23 +124,37 @@ export default function Data() {
         })
       ]);
 
-      // Use a Map to deduplicate bundles - key is "id|category"
+      // Use a Map to deduplicate bundles - key is "normalizedName|category" 
+      // This ensures same plans from different providers don't appear twice
       const bundlesMap = new Map<string, DataService>();
+
+      // Helper to create a dedup key from plan name and category
+      const createDedupKey = (name: string, category: string) => {
+        const normalizedName = name.toUpperCase().replace(/\s+/g, ' ').trim();
+        return `${normalizedName}|${category}`;
+      };
 
       // Process RGC bundles - use app_price from DB if available
       if (rgcResponse.data?.success && rgcResponse.data?.data) {
         rgcResponse.data.data
           .filter((b: DataService) => b.available)
           .forEach((b: DataService) => {
-            const bundleKey = `${b.id}|${b.category}`;
+            const dedupKey = createDedupKey(b.name, b.category);
             const savedKey = `${b.id}|${b.category}`;
             const saved = savedBundlesMap.get(savedKey);
             
-            bundlesMap.set(bundleKey, {
+            // Also check by name for cross-provider saved prices
+            const normalizedName = b.name.toUpperCase().replace(/\s+/g, ' ').trim();
+            const network = getNetworkGroup(b.category);
+            const savedByName = savedByNameMap.get(`${normalizedName}|${network}`);
+            
+            const adminPrice = saved?.app_price || savedByName?.app_price;
+            
+            bundlesMap.set(dedupKey, {
               ...b,
               provider: 'rgc' as const,
               // Use admin-set app_price if available, otherwise use API price
-              amount: saved ? String(saved.app_price) : b.amount
+              amount: adminPrice ? String(adminPrice) : b.amount
             });
           });
       }
@@ -141,17 +165,24 @@ export default function Data() {
         isquareResponse.data.data
           .filter((b: DataService) => b.available)
           .forEach((b: DataService) => {
-            const bundleKey = `${b.id}|${b.category}`;
+            const dedupKey = createDedupKey(b.name, b.category);
             const savedKey = `${b.id}|${b.category}`;
             const saved = savedBundlesMap.get(savedKey);
             
-            // Only add if not already in map (RGC takes priority if same ID+category)
-            if (!bundlesMap.has(bundleKey)) {
-              bundlesMap.set(bundleKey, {
+            // Also check by name for cross-provider saved prices
+            const normalizedName = b.name.toUpperCase().replace(/\s+/g, ' ').trim();
+            const network = getNetworkGroup(b.category);
+            const savedByName = savedByNameMap.get(`${normalizedName}|${network}`);
+            
+            const adminPrice = saved?.app_price || savedByName?.app_price;
+            
+            // Only add if not already in map (RGC takes priority if same name+category)
+            if (!bundlesMap.has(dedupKey)) {
+              bundlesMap.set(dedupKey, {
                 ...b,
                 provider: 'isquare' as const,
                 // Use admin-set app_price if available, otherwise use API price
-                amount: saved ? String(saved.app_price) : b.amount
+                amount: adminPrice ? String(adminPrice) : b.amount
               });
             }
           });
