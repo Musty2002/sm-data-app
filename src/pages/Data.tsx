@@ -98,9 +98,10 @@ export default function Data() {
         .select('*')
         .eq('is_active', true);
 
-      // Create a map of saved bundles by plan_code for quick lookup
+      // Create a map of saved bundles by plan_code AND data_type for unique lookup
+      // Key format: "plan_code|data_type" to ensure uniqueness
       const savedBundlesMap = new Map(
-        (savedBundles || []).map(b => [b.plan_code, b])
+        (savedBundles || []).map(b => [`${b.plan_code}|${b.data_type}`, b])
       );
 
       // Fetch from both RGC and iSquare APIs
@@ -113,41 +114,51 @@ export default function Data() {
         })
       ]);
 
-      let bundles: DataService[] = [];
+      // Use a Map to deduplicate bundles - key is "id|category"
+      const bundlesMap = new Map<string, DataService>();
 
       // Process RGC bundles - use app_price from DB if available
       if (rgcResponse.data?.success && rgcResponse.data?.data) {
-        const rgcBundles = rgcResponse.data.data
+        rgcResponse.data.data
           .filter((b: DataService) => b.available)
-          .map((b: DataService) => {
-            const saved = savedBundlesMap.get(String(b.id));
-            return {
+          .forEach((b: DataService) => {
+            const bundleKey = `${b.id}|${b.category}`;
+            const savedKey = `${b.id}|${b.category}`;
+            const saved = savedBundlesMap.get(savedKey);
+            
+            bundlesMap.set(bundleKey, {
               ...b,
               provider: 'rgc' as const,
               // Use admin-set app_price if available, otherwise use API price
               amount: saved ? String(saved.app_price) : b.amount
-            };
+            });
           });
-        bundles = [...bundles, ...rgcBundles];
       }
 
       // Add iSquare bundles - use app_price from DB if available
+      // Only add if not already present (avoid duplicates between providers)
       if (isquareResponse.data?.success && isquareResponse.data?.data) {
-        const isquareBundles = isquareResponse.data.data
+        isquareResponse.data.data
           .filter((b: DataService) => b.available)
-          .map((b: DataService) => {
-            const saved = savedBundlesMap.get(String(b.id));
-            return {
-              ...b,
-              provider: 'isquare' as const,
-              // Use admin-set app_price if available, otherwise use API price
-              amount: saved ? String(saved.app_price) : b.amount
-            };
+          .forEach((b: DataService) => {
+            const bundleKey = `${b.id}|${b.category}`;
+            const savedKey = `${b.id}|${b.category}`;
+            const saved = savedBundlesMap.get(savedKey);
+            
+            // Only add if not already in map (RGC takes priority if same ID+category)
+            if (!bundlesMap.has(bundleKey)) {
+              bundlesMap.set(bundleKey, {
+                ...b,
+                provider: 'isquare' as const,
+                // Use admin-set app_price if available, otherwise use API price
+                amount: saved ? String(saved.app_price) : b.amount
+              });
+            }
           });
-        bundles = [...bundles, ...isquareBundles];
       }
 
-      setAllBundles(bundles);
+      // Convert map to array
+      setAllBundles(Array.from(bundlesMap.values()));
     } catch (error: any) {
       console.error('Error fetching data bundles:', error);
       toast({
