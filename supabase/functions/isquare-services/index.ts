@@ -385,28 +385,36 @@ function transformISquareAirtimeServices(data: any[]) {
   return transformed;
 }
 
-// Services to include from iSquare for Data (based on actual API availability)
-const ISQUARE_SERVICE_CONFIG: Record<number, { category: string; network: string }> = {
-  16: { category: 'GLO SME', network: 'GLO' },
-  17: { category: 'MTN AWOOF DATA', network: 'MTN' },
-  18: { category: 'AIRTEL AWOOF', network: 'AIRTEL' },
-};
+// Detect network from service name
+function detectNetworkFromServiceName(serviceName: string): string {
+  const upper = serviceName.toUpperCase();
+  if (upper.includes('MTN')) return 'MTN';
+  if (upper.includes('AIRTEL')) return 'AIRTEL';
+  if (upper.includes('GLO')) return 'GLO';
+  if (upper.includes('9MOBILE') || upper.includes('ETISALAT')) return '9MOBILE';
+  return 'OTHER';
+}
 
 // Transform iSquare data format to match RGC format for compatibility
+// Now includes ALL services and plans from iSquare API
 function transformISquareDataServices(data: any[]) {
   const transformed: any[] = [];
   
-  console.log('Processing iSquare services, total services:', data.length);
-  console.log('Available service IDs:', data.map(s => `${s.id}: ${s.name}`).join(', '));
+  console.log('Processing ALL iSquare services, total services:', data.length);
+  console.log('Available service IDs:', data.map(s => `${s.id}: ${s.name} (${s.plans?.length || 0} plans)`).join(', '));
   
   for (const service of data) {
-    const config = ISQUARE_SERVICE_CONFIG[service.id];
-    
-    if (!config) {
+    // Skip inactive services
+    if (service.is_active === false) {
+      console.log(`Skipping inactive service: ${service.id} - ${service.name}`);
       continue;
     }
     
-    console.log(`Including service ID: ${service.id}, Name: ${service.name}, Category: ${config.category}`);
+    const network = detectNetworkFromServiceName(service.name);
+    // Use service name as category (e.g., "MTN SME", "AIRTEL CG", etc.)
+    const category = service.name?.toUpperCase() || `ISQUARE-${service.id}`;
+    
+    console.log(`Including service ID: ${service.id}, Name: ${service.name}, Category: ${category}, Network: ${network}`);
     
     for (const plan of service.plans || []) {
       if (!plan.is_active) continue;
@@ -415,17 +423,17 @@ function transformISquareDataServices(data: any[]) {
         id: plan.id,
         product_id: plan.id,
         service: 'Data',
-        amount: plan.reseller_amount,
+        amount: plan.reseller_amount || plan.amount || '0',
         name: plan.name,
-        category: config.category,
+        category: category,
         available: plan.is_active,
         provider: 'isquare',
-        network: config.network,
+        network: network,
       });
     }
   }
   
-  console.log('Transformed iSquare plans count:', transformed.length);
+  console.log('Total transformed iSquare plans count:', transformed.length);
   
   return transformed;
 }
