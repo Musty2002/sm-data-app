@@ -303,31 +303,43 @@ export default function Data() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Choose your mobile network provider
                   </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    {networkGroups.map((network) => (
-                      <button
-                        key={network}
-                        onClick={() => {
-                          setSelectedNetwork(network);
-                          setStep('category');
-                        }}
-                        className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 hover:scale-[1.02] active:scale-[0.98] ${networkColors[network] || 'border-border bg-card'}`}
-                      >
-                        <div className="w-16 h-16 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
-                          {networkLogos[network] ? (
-                            <img 
-                              src={networkLogos[network]} 
-                              alt={network} 
-                              className="w-12 h-12 object-contain rounded-lg"
-                            />
-                          ) : (
-                            <span className="text-lg font-bold">{network.charAt(0)}</span>
-                          )}
-                        </div>
-                        <p className="text-sm font-semibold text-foreground">{network}</p>
-                      </button>
-                    ))}
-                  </div>
+                  {networkGroups.length === 0 ? (
+                    <div className="text-center py-12 px-4">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                        <Loader2 className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="font-semibold text-foreground mb-2">No Data Plans Available</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Data plans are currently being configured. Please check back soon.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      {networkGroups.map((network) => (
+                        <button
+                          key={network}
+                          onClick={() => {
+                            setSelectedNetwork(network);
+                            setStep('category');
+                          }}
+                          className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 hover:scale-[1.02] active:scale-[0.98] ${networkColors[network] || 'border-border bg-card'}`}
+                        >
+                          <div className="w-16 h-16 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                            {networkLogos[network] ? (
+                              <img 
+                                src={networkLogos[network]} 
+                                alt={network} 
+                                className="w-12 h-12 object-contain rounded-lg"
+                              />
+                            ) : (
+                              <span className="text-lg font-bold">{network.charAt(0)}</span>
+                            )}
+                          </div>
+                          <p className="text-sm font-semibold text-foreground">{network}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

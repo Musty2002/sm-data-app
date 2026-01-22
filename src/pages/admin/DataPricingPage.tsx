@@ -27,7 +27,8 @@ import {
   Trash2,
   RefreshCw,
   Download,
-  Check
+  Check,
+  Filter
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -50,6 +51,7 @@ interface DataBundle {
   api_price: number;
   app_price: number;
   is_active: boolean;
+  provider?: string | null;
 }
 
 interface APIDataBundle {
@@ -70,6 +72,12 @@ const networks = [
   { code: '9MOBILE', name: '9Mobile' },
 ];
 
+const providers = [
+  { code: 'all', name: 'All Providers' },
+  { code: 'rgc', name: 'RGC' },
+  { code: 'isquare', name: 'iSquare' },
+];
+
 export default function DataPricingPage() {
   const [bundles, setBundles] = useState<DataBundle[]>([]);
   const [apiBundles, setApiBundles] = useState<APIDataBundle[]>([]);
@@ -78,6 +86,7 @@ export default function DataPricingPage() {
   const [syncing, setSyncing] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState('MTN');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedProvider, setSelectedProvider] = useState<string>('all');
   const [editedItems, setEditedItems] = useState<Record<string, Partial<DataBundle>>>({});
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newBundle, setNewBundle] = useState({
@@ -87,7 +96,7 @@ export default function DataPricingPage() {
     api_price: 0,
     app_price: 0,
   });
-  const [selectedForImport, setSelectedForImport] = useState<Set<number>>(new Set());
+  const [selectedForImport, setSelectedForImport] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'database' | 'api'>('api');
 
   useEffect(() => {
@@ -98,7 +107,7 @@ export default function DataPricingPage() {
     if (viewMode === 'database') {
       fetchBundles();
     }
-  }, [selectedNetwork, selectedCategory, viewMode]);
+  }, [selectedNetwork, selectedCategory, selectedProvider, viewMode]);
 
   // Fetch bundles from both RGC and iSquare APIs
   const fetchFromAPI = async () => {
@@ -159,6 +168,11 @@ export default function DataPricingPage() {
 
       if (selectedCategory) {
         query = query.eq('data_type', selectedCategory);
+      }
+
+      // Apply provider filter
+      if (selectedProvider && selectedProvider !== 'all') {
+        query = query.eq('provider', selectedProvider);
       }
 
       const { data, error } = await query;
@@ -228,6 +242,9 @@ export default function DataPricingPage() {
     }
   };
 
+  // Create unique key for bundle (provider-id)
+  const getBundleKey = (bundle: APIDataBundle) => `${bundle.provider}-${bundle.id}`;
+
   const importSelectedBundles = async () => {
     if (selectedForImport.size === 0) {
       toast.error('Select bundles to import');
@@ -236,18 +253,19 @@ export default function DataPricingPage() {
 
     setSaving(true);
     try {
-      const bundlesToImport = apiBundles.filter(b => selectedForImport.has(b.id));
+      const bundlesToImport = apiBundles.filter(b => selectedForImport.has(getBundleKey(b)));
       
       for (const bundle of bundlesToImport) {
         const networkCode = getNetworkGroup(bundle.category);
         const apiPrice = parseFloat(bundle.amount);
         
-        // Check if already exists
+        // Check if already exists (by provider, plan_code and category)
         const { data: existing } = await supabase
           .from('data_bundles')
           .select('id')
           .eq('plan_code', bundle.id.toString())
           .eq('data_type', bundle.category)
+          .eq('provider', bundle.provider)
           .single();
 
         if (existing) {
@@ -392,15 +410,25 @@ export default function DataPricingPage() {
 
   const hasChanges = Object.keys(editedItems).length > 0;
 
-  // Get categories from API bundles for selected network
-  const networkApiBundles = apiBundles.filter(b => getNetworkGroup(b.category) === selectedNetwork);
+  // Get categories from API bundles for selected network, filtered by provider
+  const networkApiBundles = apiBundles.filter(b => {
+    const matchesNetwork = getNetworkGroup(b.category) === selectedNetwork;
+    const matchesProvider = selectedProvider === 'all' || b.provider === selectedProvider;
+    return matchesNetwork && matchesProvider;
+  });
   const apiCategories = [...new Set(networkApiBundles.map(b => b.category))];
 
-  // Filter API bundles by selected category
-  const filteredApiBundles = selectedCategory 
-    ? apiBundles.filter(b => b.category === selectedCategory)
-        .sort((a, b) => parseFloat(a.amount) - parseFloat(b.amount))
-    : [];
+  // Filter API bundles by selected category and provider
+  const filteredApiBundles = (() => {
+    let result = apiBundles;
+    if (selectedCategory) {
+      result = result.filter(b => b.category === selectedCategory);
+    }
+    if (selectedProvider !== 'all') {
+      result = result.filter(b => b.provider === selectedProvider);
+    }
+    return result.sort((a, b) => parseFloat(a.amount) - parseFloat(b.amount));
+  })();
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -410,21 +438,21 @@ export default function DataPricingPage() {
     }).format(price);
   };
 
-  const toggleSelection = (id: number) => {
+  const toggleSelection = (bundleKey: string) => {
     setSelectedForImport(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(bundleKey)) {
+        next.delete(bundleKey);
       } else {
-        next.add(id);
+        next.add(bundleKey);
       }
       return next;
     });
   };
 
   const selectAll = () => {
-    const allIds = new Set(filteredApiBundles.map(b => b.id));
-    setSelectedForImport(allIds);
+    const allKeys = new Set(filteredApiBundles.map(b => getBundleKey(b)));
+    setSelectedForImport(allKeys);
   };
 
   return (
@@ -503,7 +531,28 @@ export default function DataPricingPage() {
                 <SelectContent>
                   {apiCategories.map(cat => (
                     <SelectItem key={cat} value={cat}>
-                      {cat} ({apiBundles.filter(b => b.category === cat).length})
+                      {cat} ({apiBundles.filter(b => b.category === cat && (selectedProvider === 'all' || b.provider === selectedProvider)).length})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <Label className="mb-2 block">Provider</Label>
+              <Select value={selectedProvider} onValueChange={(v) => {
+                setSelectedProvider(v);
+                setSelectedCategory('');
+              }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.map(p => (
+                    <SelectItem key={p.code} value={p.code}>
+                      <div className="flex items-center gap-2">
+                        <Filter className="w-3 h-3" />
+                        {p.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -646,16 +695,18 @@ export default function DataPricingPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredApiBundles.map((bundle) => (
-                      <TableRow key={`${bundle.provider}-${bundle.id}`} className={selectedForImport.has(bundle.id) ? 'bg-primary/5' : ''}>
-                        <TableCell>
-                          <input
-                            type="checkbox"
-                            checked={selectedForImport.has(bundle.id)}
-                            onChange={() => toggleSelection(bundle.id)}
-                            className="rounded"
-                          />
-                        </TableCell>
+                    {filteredApiBundles.map((bundle) => {
+                      const bundleKey = getBundleKey(bundle);
+                      return (
+                        <TableRow key={bundleKey} className={selectedForImport.has(bundleKey) ? 'bg-primary/5' : ''}>
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedForImport.has(bundleKey)}
+                              onChange={() => toggleSelection(bundleKey)}
+                              className="rounded"
+                            />
+                          </TableCell>
                         <TableCell className="font-mono text-sm">{bundle.id}</TableCell>
                         <TableCell className="font-medium">{bundle.name}</TableCell>
                         <TableCell className="font-semibold text-primary">
@@ -679,7 +730,9 @@ export default function DataPricingPage() {
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
+
                   </TableBody>
                 </Table>
               </div>
@@ -715,6 +768,7 @@ export default function DataPricingPage() {
                       <TableHead>Plan Code</TableHead>
                       <TableHead>Plan Name</TableHead>
                       <TableHead>Category</TableHead>
+                      <TableHead>Provider</TableHead>
                       <TableHead>API Price (₦)</TableHead>
                       <TableHead>App Price (₦)</TableHead>
                       <TableHead>Profit (₦)</TableHead>
@@ -734,6 +788,11 @@ export default function DataPricingPage() {
                           <TableCell className="font-medium">{bundle.plan_name}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{bundle.data_type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={bundle.provider === 'isquare' ? 'default' : 'secondary'}>
+                              {bundle.provider === 'isquare' ? 'iSquare' : 'RGC'}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {formatPrice(bundle.api_price)}
