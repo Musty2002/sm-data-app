@@ -122,9 +122,8 @@ export default function Data() {
         
         // Only add if not already in map (first one wins - avoids duplicates)
         if (!bundlesMap.has(dedupKey)) {
-          // Determine provider from network_code field
-          const isISquare = bundle.network_code?.toLowerCase().includes('isquare') || 
-                            bundle.plan_code?.toString().startsWith('isquare_');
+          // Use the provider field from database (defaults to 'rgc' if not set)
+          const provider = (bundle as any).provider === 'isquare' ? 'isquare' : 'rgc';
           
           bundlesMap.set(dedupKey, {
             id: parseInt(bundle.plan_code) || 0,
@@ -134,7 +133,7 @@ export default function Data() {
             amount: String(bundle.app_price),
             category: bundle.data_type,
             available: bundle.is_active ?? true,
-            provider: isISquare ? 'isquare' : 'rgc'
+            provider
           });
         }
       });
