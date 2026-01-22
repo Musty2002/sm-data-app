@@ -115,6 +115,7 @@ export type Database = {
           network_code: string
           plan_code: string
           plan_name: string
+          provider: string | null
           updated_at: string | null
           validity: string | null
         }
@@ -128,6 +129,7 @@ export type Database = {
           network_code: string
           plan_code: string
           plan_name: string
+          provider?: string | null
           updated_at?: string | null
           validity?: string | null
         }
@@ -141,6 +143,7 @@ export type Database = {
           network_code?: string
           plan_code?: string
           plan_name?: string
+          provider?: string | null
           updated_at?: string | null
           validity?: string | null
         }

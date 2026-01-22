@@ -260,7 +260,7 @@ export default function DataPricingPage() {
             })
             .eq('id', existing.id);
         } else {
-          // Insert new
+          // Insert new with provider info
           await supabase
             .from('data_bundles')
             .insert({
@@ -271,6 +271,7 @@ export default function DataPricingPage() {
               api_price: apiPrice,
               app_price: apiPrice, // Default to API price, admin can adjust
               is_active: true,
+              provider: bundle.provider, // Store which API provider this bundle is from
             });
         }
       }
@@ -328,6 +329,7 @@ export default function DataPricingPage() {
               api_price: apiPrice,
               app_price: apiPrice,
               is_active: true,
+              provider: bundle.provider, // Store which API provider this bundle is from
             });
         }
       }
