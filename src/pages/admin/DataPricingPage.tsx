@@ -62,7 +62,7 @@ interface APIDataBundle {
   name: string;
   category: string;
   available: boolean;
-  provider: 'rgc' | 'isquare';
+  provider: 'rgc' | 'isquare' | 'elrufai';
 }
 
 const networks = [
@@ -76,6 +76,7 @@ const providers = [
   { code: 'all', name: 'All Providers' },
   { code: 'rgc', name: 'RGC' },
   { code: 'isquare', name: 'iSquare' },
+  { code: 'elrufai', name: 'Elrufai' },
 ];
 
 export default function DataPricingPage() {
@@ -713,8 +714,8 @@ export default function DataPricingPage() {
                           {formatPrice(parseFloat(bundle.amount))}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={bundle.provider === 'isquare' ? 'default' : 'secondary'}>
-                            {bundle.provider === 'isquare' ? 'iSquare' : 'RGC'}
+                          <Badge variant={bundle.provider === 'isquare' ? 'default' : bundle.provider === 'elrufai' ? 'outline' : 'secondary'}>
+                            {bundle.provider === 'isquare' ? 'iSquare' : bundle.provider === 'elrufai' ? 'Elrufai' : 'RGC'}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -790,8 +791,8 @@ export default function DataPricingPage() {
                             <Badge variant="outline">{bundle.data_type}</Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={bundle.provider === 'isquare' ? 'default' : 'secondary'}>
-                              {bundle.provider === 'isquare' ? 'iSquare' : 'RGC'}
+                            <Badge variant={bundle.provider === 'isquare' ? 'default' : bundle.provider === 'elrufai' ? 'outline' : 'secondary'}>
+                              {bundle.provider === 'isquare' ? 'iSquare' : bundle.provider === 'elrufai' ? 'Elrufai' : 'RGC'}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
@@ -851,9 +852,10 @@ export default function DataPricingPage() {
         <CardContent className="text-sm text-gray-600 space-y-2">
           <p><strong>1. API Bundles:</strong> View live prices from RGC and iSquare providers</p>
           <p><strong>2. Import:</strong> Select bundles and click "Import" to save them to your database</p>
-          <p><strong>3. Saved Bundles:</strong> Edit your selling prices (App Price) and toggle active status</p>
-          <p><strong>4. Profit:</strong> Difference between your App Price and API Price</p>
-          <p><strong>5. Refresh:</strong> Click "Refresh API" to get latest prices from providers</p>
+          <p><strong>3. Elrufai:</strong> Manually add bundles for Elrufai (API doesn't expose plan list)</p>
+          <p><strong>4. Saved Bundles:</strong> Edit your selling prices (App Price) and toggle active status</p>
+          <p><strong>5. Profit:</strong> Difference between your App Price and API Price</p>
+          <p><strong>6. Refresh:</strong> Click "Refresh API" to get latest prices from providers</p>
         </CardContent>
       </Card>
     </div>

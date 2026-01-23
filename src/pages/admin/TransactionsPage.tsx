@@ -34,7 +34,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   RefreshCcw,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -49,6 +53,15 @@ interface Transaction {
   description: string;
   reference: string;
   created_at: string;
+  metadata?: {
+    mobile_number?: string;
+    plan?: number;
+    plan_name?: string;
+    provider?: 'rgc' | 'isquare' | 'elrufai';
+    error?: string;
+    api_response?: any;
+    [key: string]: any;
+  };
   profiles?: { full_name: string; email: string };
 }
 
@@ -61,6 +74,7 @@ export default function TransactionsPage() {
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [refunding, setRefunding] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
@@ -70,7 +84,7 @@ export default function TransactionsPage() {
     try {
       let query = supabase
         .from('transactions')
-        .select('*')
+        .select('*, metadata')
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
@@ -184,17 +198,64 @@ export default function TransactionsPage() {
     a.click();
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (status: string, metadata?: Transaction['metadata']) => {
+    // Enhanced status display based on actual API response if available
+    const apiStatus = metadata?.api_response?.status || metadata?.api_response?.Status;
+    const hasError = metadata?.error;
+    
+    // Determine effective status
+    let effectiveStatus = status;
+    if (hasError && status !== 'failed') {
+      effectiveStatus = 'failed'; // If there's an error in metadata, it's actually failed
+    }
+    if (apiStatus === 'successful' || apiStatus === 'success') {
+      effectiveStatus = 'completed';
+    }
+    
+    switch (effectiveStatus) {
       case 'completed':
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+        return (
+          <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" />
+            Completed
+          </Badge>
+        );
       case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            Pending
+          </Badge>
+        );
       case 'failed':
-        return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
+        return (
+          <Badge className="bg-red-100 text-red-800 flex items-center gap-1">
+            <XCircle className="w-3 h-3" />
+            Failed
+          </Badge>
+        );
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
+  };
+
+  const openDetailsDialog = (txn: Transaction) => {
+    setSelectedTransaction(txn);
+    setDetailsDialogOpen(true);
+  };
+
+  const getProviderBadge = (provider?: string) => {
+    if (!provider) return null;
+    const colors: Record<string, string> = {
+      'rgc': 'bg-blue-100 text-blue-800',
+      'isquare': 'bg-purple-100 text-purple-800',
+      'elrufai': 'bg-orange-100 text-orange-800',
+    };
+    return (
+      <Badge className={colors[provider] || 'bg-gray-100 text-gray-800'} variant="outline">
+        {provider.toUpperCase()}
+      </Badge>
+    );
   };
 
   const filteredTransactions = transactions.filter(t => 
@@ -204,7 +265,10 @@ export default function TransactionsPage() {
     t.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const failedTransactions = filteredTransactions.filter(t => t.status === 'failed');
+  // Count failed transactions including those with error in metadata
+  const failedTransactions = filteredTransactions.filter(t => 
+    t.status === 'failed' || t.metadata?.error
+  );
 
   if (loading) {
     return (
@@ -297,6 +361,7 @@ export default function TransactionsPage() {
                   <TableHead>User</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Provider</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Reference</TableHead>
@@ -306,13 +371,13 @@ export default function TransactionsPage() {
               <TableBody>
                 {filteredTransactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                       No transactions found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredTransactions.map((txn) => (
-                    <TableRow key={txn.id} className={txn.status === 'failed' ? 'bg-red-50' : ''}>
+                    <TableRow key={txn.id} className={txn.status === 'failed' || txn.metadata?.error ? 'bg-red-50' : ''}>
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(txn.created_at), 'MMM d, yyyy HH:mm')}
                       </TableCell>
@@ -333,25 +398,38 @@ export default function TransactionsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="capitalize">{txn.category}</TableCell>
+                      <TableCell>
+                        {getProviderBadge(txn.metadata?.provider)}
+                      </TableCell>
                       <TableCell className={`font-medium ${txn.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
                         {txn.type === 'credit' ? '+' : '-'}₦{Number(txn.amount).toLocaleString()}
                       </TableCell>
-                      <TableCell>{getStatusBadge(txn.status)}</TableCell>
+                      <TableCell>{getStatusBadge(txn.status, txn.metadata)}</TableCell>
                       <TableCell className="font-mono text-xs text-gray-500">
                         {txn.reference || '-'}
                       </TableCell>
                       <TableCell>
-                        {txn.status === 'failed' && txn.type === 'debit' && (
+                        <div className="flex gap-1">
                           <Button
                             size="sm"
-                            variant="outline"
-                            className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                            onClick={() => openRefundDialog(txn)}
+                            variant="ghost"
+                            className="text-gray-600 hover:text-gray-800"
+                            onClick={() => openDetailsDialog(txn)}
                           >
-                            <RefreshCcw className="w-3 h-3 mr-1" />
-                            Refund
+                            <Eye className="w-3 h-3" />
                           </Button>
-                        )}
+                          {(txn.status === 'failed' || txn.metadata?.error) && txn.type === 'debit' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                              onClick={() => openRefundDialog(txn)}
+                            >
+                              <RefreshCcw className="w-3 h-3 mr-1" />
+                              Refund
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -413,6 +491,102 @@ export default function TransactionsPage() {
                   Process Refund
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transaction Details Dialog */}
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Transaction Details</DialogTitle>
+            <DialogDescription>
+              Full details and metadata for this transaction
+            </DialogDescription>
+          </DialogHeader>
+          {selectedTransaction && (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Transaction ID:</span>
+                  <span className="font-mono text-xs">{selectedTransaction.id.slice(0, 8)}...</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">User:</span>
+                  <span className="font-medium">{selectedTransaction.profiles?.full_name || 'Unknown'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Category:</span>
+                  <span className="capitalize">{selectedTransaction.category}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Amount:</span>
+                  <span className={`font-bold ${selectedTransaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                    {selectedTransaction.type === 'credit' ? '+' : '-'}₦{Number(selectedTransaction.amount).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Status:</span>
+                  {getStatusBadge(selectedTransaction.status, selectedTransaction.metadata)}
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Provider:</span>
+                  {getProviderBadge(selectedTransaction.metadata?.provider) || <span className="text-gray-400">N/A</span>}
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Reference:</span>
+                  <span className="font-mono text-xs">{selectedTransaction.reference || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Date:</span>
+                  <span className="text-sm">{format(new Date(selectedTransaction.created_at), 'MMM d, yyyy HH:mm:ss')}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Description:</span>
+                  <p className="text-sm mt-1">{selectedTransaction.description}</p>
+                </div>
+              </div>
+
+              {/* Metadata Section */}
+              {selectedTransaction.metadata && Object.keys(selectedTransaction.metadata).length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">Transaction Metadata</h4>
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
+                    {selectedTransaction.metadata.mobile_number && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Phone Number:</span>
+                        <span className="font-mono">{selectedTransaction.metadata.mobile_number}</span>
+                      </div>
+                    )}
+                    {selectedTransaction.metadata.plan_name && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Plan:</span>
+                        <span>{selectedTransaction.metadata.plan_name}</span>
+                      </div>
+                    )}
+                    {selectedTransaction.metadata.error && (
+                      <div className="mt-2 p-2 bg-red-50 rounded border border-red-200">
+                        <span className="text-red-600 font-medium text-xs">Error:</span>
+                        <p className="text-red-700 text-xs mt-1">{selectedTransaction.metadata.error}</p>
+                      </div>
+                    )}
+                    {selectedTransaction.metadata.api_response && (
+                      <div className="mt-2">
+                        <span className="text-gray-500 text-xs">API Response:</span>
+                        <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
+                          {JSON.stringify(selectedTransaction.metadata.api_response, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

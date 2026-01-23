@@ -24,7 +24,7 @@ interface DataService {
   name: string;
   category: string;
   available: boolean;
-  provider?: 'rgc' | 'isquare'; // Track which provider this plan is from
+  provider?: 'rgc' | 'isquare' | 'elrufai'; // Track which provider this plan is from
 }
 
 type Step = 'network' | 'category' | 'plan' | 'confirm';
@@ -123,7 +123,10 @@ export default function Data() {
         // Only add if not already in map (first one wins - avoids duplicates)
         if (!bundlesMap.has(dedupKey)) {
           // Use the provider field from database (defaults to 'rgc' if not set)
-          const provider = (bundle as any).provider === 'isquare' ? 'isquare' : 'rgc';
+          const bundleProvider = (bundle as any).provider;
+          const provider: 'rgc' | 'isquare' | 'elrufai' = 
+            bundleProvider === 'isquare' ? 'isquare' : 
+            bundleProvider === 'elrufai' ? 'elrufai' : 'rgc';
           
           bundlesMap.set(dedupKey, {
             id: parseInt(bundle.plan_code) || 0,
@@ -170,20 +173,45 @@ export default function Data() {
     try {
       // Route to appropriate provider based on bundle provider
       const provider = selectedBundle.provider || 'rgc';
-      const functionName = provider === 'isquare' ? 'isquare-services' : 'rgc-services';
+      let functionName: string;
       
-      console.log(`Purchasing via ${provider} provider`);
+      switch (provider) {
+        case 'isquare':
+          functionName = 'isquare-services';
+          break;
+        case 'elrufai':
+          functionName = 'elrufai-services';
+          break;
+        default:
+          functionName = 'rgc-services';
+      }
+      
+      console.log(`Purchasing via ${provider} provider using ${functionName}`);
+
+      // Build request body based on provider
+      const requestBody: any = {
+        action: 'purchase',
+        serviceType: 'data',
+        plan: selectedBundle.id,
+        plan_name: selectedBundle.name,
+        mobile_number: phoneNumber,
+        phone_number: phoneNumber, // iSquare uses phone_number
+        amount: parseFloat(selectedBundle.amount),
+      };
+
+      // Elrufai needs network ID
+      if (provider === 'elrufai') {
+        const networkIdMap: Record<string, number> = {
+          'MTN': 1,
+          'Airtel': 3,
+          'Glo': 2,
+          '9mobile': 4,
+        };
+        requestBody.network = networkIdMap[selectedNetwork!] || 1;
+      }
 
       const { data, error } = await supabase.functions.invoke(functionName, {
-        body: {
-          action: 'purchase',
-          serviceType: 'data',
-          plan: selectedBundle.id,
-          plan_name: selectedBundle.name,
-          mobile_number: phoneNumber,
-          phone_number: phoneNumber, // iSquare uses phone_number
-          amount: parseFloat(selectedBundle.amount),
-        }
+        body: requestBody
       });
 
       if (error) {
@@ -431,7 +459,10 @@ export default function Data() {
                           {formatPrice(parseFloat(bundle.amount))}
                         </p>
                         {bundle.provider === 'isquare' && (
-                          <span className="text-xs text-green-600 font-medium">Best Price</span>
+                          <span className="text-xs text-green-600 font-medium">iSquare</span>
+                        )}
+                        {bundle.provider === 'elrufai' && (
+                          <span className="text-xs text-blue-600 font-medium">Elrufai</span>
                         )}
                       </button>
                     ))}
