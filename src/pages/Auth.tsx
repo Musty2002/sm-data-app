@@ -336,7 +336,7 @@ export default function Auth() {
                       id="phone"
                       name="phone"
                       type="tel"
-                      placeholder="08012345678"
+                      placeholder="Enter your phone number"
                       value={formData.phone}
                       onChange={handleChange}
                       className={errors.phone ? 'border-destructive' : ''}
