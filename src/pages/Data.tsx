@@ -511,7 +511,7 @@ export default function Data() {
                     <Input
                       id="phone"
                       type="tel"
-                      placeholder="08012345678"
+                      placeholder="Enter your phone number"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       className="mt-2"
