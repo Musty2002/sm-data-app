@@ -474,15 +474,26 @@ Deno.serve(async (req) => {
           }
 
           result = await purchaseAirtime(networkValue, body.amount, body.mobile_number);
+          
+          // Determine status - RGC typically returns success if the API doesn't throw
+          const isSuccessful = result.success !== false && !result.error;
+          const transactionStatus = isSuccessful ? 'completed' : 'pending';
+          console.log(`RGC airtime transaction status: ${transactionStatus}`);
+          
           await recordTransaction(
             supabase,
             userId,
             amount,
             'airtime',
             description,
-            'completed',
-            undefined,
-            { mobile_number: body.mobile_number, network: networkValue }
+            transactionStatus,
+            result.reference || undefined,
+            { 
+              mobile_number: body.mobile_number, 
+              network: networkValue,
+              provider: 'rgc',
+              api_response: result // Store full API response
+            }
           );
 
           // Calculate and add cashback for airtime
@@ -512,7 +523,27 @@ Deno.serve(async (req) => {
           const planName = body.plan_name || '';
           const dataSizeGB = extractDataSizeGB(planName);
           
-          await recordTransaction(supabase, userId, amount, 'data', description, 'completed', undefined, { mobile_number: body.mobile_number, plan: body.plan, plan_name: planName });
+          // Determine status - RGC typically returns success if the API doesn't throw
+          const isSuccessful = result.success !== false && !result.error;
+          const transactionStatus = isSuccessful ? 'completed' : 'pending';
+          console.log(`RGC data transaction status: ${transactionStatus}`);
+          
+          await recordTransaction(
+            supabase, 
+            userId, 
+            amount, 
+            'data', 
+            description, 
+            transactionStatus, 
+            result.reference || undefined, 
+            { 
+              mobile_number: body.mobile_number, 
+              plan: body.plan, 
+              plan_name: planName,
+              provider: 'rgc',
+              api_response: result // Store full API response
+            }
+          );
 
           // Calculate and add cashback for data
           const dataCashback = calculateCashback('data', amount, dataSizeGB);
@@ -541,7 +572,12 @@ Deno.serve(async (req) => {
           }
 
           result = await purchaseCable(body.plan_id, body.smart_card_number);
-          await recordTransaction(supabase, userId, amount, 'tv', description, 'completed', undefined, { smart_card_number: body.smart_card_number, plan_id: body.plan_id });
+          await recordTransaction(supabase, userId, amount, 'tv', description, 'completed', result.reference || undefined, { 
+            smart_card_number: body.smart_card_number, 
+            plan_id: body.plan_id,
+            provider: 'rgc',
+            api_response: result 
+          });
 
         } else if (serviceType === 'electricity') {
           if (!body.discoid || !body.MeterType || !body.meter_number || !body.amount) {
@@ -559,7 +595,13 @@ Deno.serve(async (req) => {
           }
 
           result = await purchaseElectricity(body.discoid, body.MeterType, body.meter_number, body.amount);
-          await recordTransaction(supabase, userId, amount, 'electricity', description, 'completed', undefined, { meter_number: body.meter_number, discoid: body.discoid, meter_type: body.MeterType });
+          await recordTransaction(supabase, userId, amount, 'electricity', description, 'completed', result.reference || undefined, { 
+            meter_number: body.meter_number, 
+            discoid: body.discoid, 
+            meter_type: body.MeterType,
+            provider: 'rgc',
+            api_response: result 
+          });
 
         } else if (serviceType === 'resultcheck') {
           if (!body.examid || !body.quantity || !body.amount) {
@@ -578,10 +620,12 @@ Deno.serve(async (req) => {
           }
 
           result = await purchaseExamPin(body.examid, body.quantity);
-          await recordTransaction(supabase, userId, amount, 'airtime', description, 'completed', undefined, { 
+          await recordTransaction(supabase, userId, amount, 'airtime', description, 'completed', result.reference || undefined, { 
             examid: body.examid, 
             quantity: body.quantity,
-            exam_name: examName 
+            exam_name: examName,
+            provider: 'rgc',
+            api_response: result 
           });
 
         } else {
@@ -597,7 +641,7 @@ Deno.serve(async (req) => {
         console.error('Purchase failed:', purchaseError);
         
         // Record failed transaction
-        await recordTransaction(supabase, userId, amount, serviceType === 'cable' ? 'tv' : serviceType, description, 'failed', undefined, { error: purchaseError.message });
+        await recordTransaction(supabase, userId, amount, serviceType === 'cable' ? 'tv' : serviceType, description, 'failed', undefined, { error: purchaseError.message, provider: 'rgc' });
 
         // Refund the wallet
         const { data: wallet } = await supabase
