@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Transaction, TransactionCategory } from '@/types/database';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import { getEffectiveTransactionStatus, getStatusColorClasses, getStatusLabel, TransactionMetadata } from '@/lib/transactionStatus';
 
 const categoryFilters: { label: string; value: TransactionCategory | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -29,7 +30,7 @@ export default function History() {
     }
   }, [user, filter]);
 
-  // Real-time transaction updates
+  // Real-time transaction updates (INSERT and UPDATE for status changes)
   useEffect(() => {
     if (!user?.id) return;
 
@@ -45,8 +46,22 @@ export default function History() {
         },
         (payload) => {
           console.log('New transaction:', payload);
-          // Add new transaction to the top of the list
           setTransactions((prev) => [payload.new as Transaction, ...prev]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('Updated transaction:', payload);
+          setTransactions((prev) => 
+            prev.map(tx => tx.id === payload.new.id ? payload.new as Transaction : tx)
+          );
         }
       )
       .subscribe();
@@ -187,12 +202,15 @@ export default function History() {
                         >
                           {formatAmount(tx.amount, tx.type)}
                         </span>
-                        <p className={`text-xs ${
-                          tx.status === 'completed' ? 'text-green-600' : 
-                          tx.status === 'failed' ? 'text-red-600' : 'text-yellow-600'
-                        }`}>
-                          {tx.status}
-                        </p>
+                        {(() => {
+                          const effectiveStatus = getEffectiveTransactionStatus(tx.status, tx.metadata as TransactionMetadata);
+                          const colorClasses = getStatusColorClasses(effectiveStatus);
+                          return (
+                            <p className={`text-xs capitalize ${colorClasses.text}`}>
+                              {getStatusLabel(effectiveStatus)}
+                            </p>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}

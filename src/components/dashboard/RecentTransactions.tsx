@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Transaction } from '@/types/database';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { getEffectiveTransactionStatus, getStatusColorClasses, getStatusLabel, TransactionMetadata } from '@/lib/transactionStatus';
 
 export function RecentTransactions() {
   const { user } = useAuth();
@@ -18,10 +19,36 @@ export function RecentTransactions() {
     }
   }, [user]);
 
+  // Real-time transaction updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('recent-transactions-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          // Refetch to get latest 5 with accurate ordering
+          fetchTransactions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const fetchTransactions = async () => {
     const { data } = await supabase
       .from('transactions')
-      .select('*')
+      .select('*, metadata')
       .eq('user_id', user!.id)
       .order('created_at', { ascending: false })
       .limit(5);
@@ -109,13 +136,24 @@ export function RecentTransactions() {
                   {format(new Date(tx.created_at), 'MMM d, h:mm a')}
                 </p>
               </div>
-              <span
-                className={`text-sm font-semibold ${
-                  tx.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {formatAmount(tx.amount, tx.type)}
-              </span>
+              <div className="text-right">
+                <span
+                  className={`text-sm font-semibold ${
+                    tx.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                  }`}
+                >
+                  {formatAmount(tx.amount, tx.type)}
+                </span>
+                {(() => {
+                  const effectiveStatus = getEffectiveTransactionStatus(tx.status, tx.metadata as TransactionMetadata);
+                  const colorClasses = getStatusColorClasses(effectiveStatus);
+                  return (
+                    <p className={`text-xs capitalize ${colorClasses.text}`}>
+                      {getStatusLabel(effectiveStatus)}
+                    </p>
+                  );
+                })()}
+              </div>
             </div>
           ))}
         </div>
