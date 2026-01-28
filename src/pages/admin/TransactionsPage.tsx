@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { getEffectiveTransactionStatus, TransactionMetadata, EffectiveStatus } from '@/lib/transactionStatus';
 
 interface Transaction {
   id: string;
@@ -78,6 +79,26 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchTransactions();
+    
+    // Real-time updates for admin
+    const channel = supabase
+      .channel('admin-transactions-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+        },
+        () => {
+          fetchTransactions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [statusFilter, categoryFilter]);
 
   const fetchTransactions = async () => {
@@ -199,18 +220,7 @@ export default function TransactionsPage() {
   };
 
   const getStatusBadge = (status: string, metadata?: Transaction['metadata']) => {
-    // Enhanced status display based on actual API response if available
-    const apiStatus = metadata?.api_response?.status || metadata?.api_response?.Status;
-    const hasError = metadata?.error;
-    
-    // Determine effective status
-    let effectiveStatus = status;
-    if (hasError && status !== 'failed') {
-      effectiveStatus = 'failed'; // If there's an error in metadata, it's actually failed
-    }
-    if (apiStatus === 'successful' || apiStatus === 'success') {
-      effectiveStatus = 'completed';
-    }
+    const effectiveStatus = getEffectiveTransactionStatus(status, metadata as TransactionMetadata);
     
     switch (effectiveStatus) {
       case 'completed':
@@ -237,6 +247,11 @@ export default function TransactionsPage() {
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
+  };
+  
+  // Helper to check if transaction actually failed based on metadata
+  const isActuallyFailed = (txn: Transaction): boolean => {
+    return getEffectiveTransactionStatus(txn.status, txn.metadata as TransactionMetadata) === 'failed';
   };
 
   const openDetailsDialog = (txn: Transaction) => {
@@ -265,10 +280,8 @@ export default function TransactionsPage() {
     t.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Count failed transactions including those with error in metadata
-  const failedTransactions = filteredTransactions.filter(t => 
-    t.status === 'failed' || t.metadata?.error
-  );
+  // Count failed transactions using the accurate status detection
+  const failedTransactions = filteredTransactions.filter(t => isActuallyFailed(t));
 
   if (loading) {
     return (
@@ -377,7 +390,7 @@ export default function TransactionsPage() {
                   </TableRow>
                 ) : (
                   filteredTransactions.map((txn) => (
-                    <TableRow key={txn.id} className={txn.status === 'failed' || txn.metadata?.error ? 'bg-red-50' : ''}>
+                    <TableRow key={txn.id} className={isActuallyFailed(txn) ? 'bg-red-50' : ''}>
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(txn.created_at), 'MMM d, yyyy HH:mm')}
                       </TableCell>
@@ -418,7 +431,7 @@ export default function TransactionsPage() {
                           >
                             <Eye className="w-3 h-3" />
                           </Button>
-                          {(txn.status === 'failed' || txn.metadata?.error) && txn.type === 'debit' && (
+                          {isActuallyFailed(txn) && txn.type === 'debit' && (
                             <Button
                               size="sm"
                               variant="outline"
