@@ -519,19 +519,31 @@ Deno.serve(async (req) => {
           const planName = body.plan_name || '';
           const dataSizeGB = extractDataSizeGB(planName);
           
+          // Determine actual status from iSquare response
+          // iSquare may return "pending" even when successful - check for balance deduction or other success indicators
+          const isSuccessful = result.new_balance !== undefined || 
+                               result.status === 'success' || 
+                               result.status === 'successful' ||
+                               result.status === 'delivered' ||
+                               (result.id && result.reference); // Has transaction ID and reference = processed
+          
+          const transactionStatus = isSuccessful ? 'completed' : 'pending';
+          console.log(`iSquare data transaction status determined: ${transactionStatus} (API status: ${result.status})`);
+          
           await recordTransaction(
             supabase, 
             userId, 
             amount, 
             'data', 
             description, 
-            result.status === 'success' ? 'completed' : 'pending',
+            transactionStatus,
             result.reference || reference, 
             { 
               mobile_number: body.phone_number, 
               plan: body.plan, 
               plan_name: planName,
-              provider: 'isquare'
+              provider: 'isquare',
+              api_response: result // Store full API response for accurate status detection
             }
           );
 
@@ -572,18 +584,30 @@ Deno.serve(async (req) => {
 
           const result = await purchaseAirtime(body.network, phoneNumber, amount, reference);
           
+          // Determine actual status from iSquare response
+          // iSquare may return "pending" even when successful - check for balance deduction or other success indicators
+          const isSuccessful = result.new_balance !== undefined || 
+                               result.status === 'success' || 
+                               result.status === 'successful' ||
+                               result.status === 'delivered' ||
+                               (result.id && result.reference); // Has transaction ID and reference = processed
+          
+          const transactionStatus = isSuccessful ? 'completed' : 'pending';
+          console.log(`iSquare airtime transaction status determined: ${transactionStatus} (API status: ${result.status})`);
+          
           await recordTransaction(
             supabase, 
             userId, 
             amount, 
             'airtime', 
             description, 
-            result.status === 'success' ? 'completed' : 'pending',
+            transactionStatus,
             result.reference || reference, 
             { 
               mobile_number: phoneNumber, 
               network: body.network,
-              provider: 'isquare'
+              provider: 'isquare',
+              api_response: result // Store full API response for accurate status detection
             }
           );
 

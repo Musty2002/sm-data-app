@@ -30,6 +30,16 @@ export function getEffectiveTransactionStatus(
   if (apiResponse) {
     const apiStatus = (apiResponse.status || apiResponse.Status || '').toLowerCase();
     
+    // iSquare specific: if there's a new_balance field, the transaction was processed
+    if (apiResponse.new_balance !== undefined) {
+      return 'completed';
+    }
+    
+    // iSquare specific: if there's an id and reference, transaction was processed
+    if (apiResponse.id && apiResponse.reference) {
+      return 'completed';
+    }
+    
     // Success indicators
     if (
       apiStatus === 'successful' || 
@@ -61,6 +71,12 @@ export function getEffectiveTransactionStatus(
         apiResponse.message?.toLowerCase().includes('failed') ||
         apiResponse.message?.toLowerCase().includes('insufficient')) {
       return 'failed';
+    }
+    
+    // If API response exists with no explicit failure, and DB status is pending,
+    // it's likely processed (for iSquare "pending" = processing/done)
+    if (dbStatus === 'pending' && apiResponse.id) {
+      return 'completed';
     }
   }
   
