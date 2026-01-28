@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.smdata.app',
+  appId: 'com.smdataapp.ng',
   appName: 'SM Data App',
   webDir: 'dist',
   // Remove server.url to run standalone from bundled assets
